@@ -23,9 +23,51 @@
       <div class="lobby-stats" id="lobby-stats"></div>
       <div class="lobby-buttons">
         <button id="btn-play" class="btn btn-play">▶ PLAY</button>
+        <button id="btn-online" class="btn btn-online">🌐 Play with friends</button>
         <button id="btn-index" class="btn">📖 Word Index</button>
         <button id="btn-help" class="btn">❓ How to play</button>
         <button id="btn-mute" class="btn btn-small">🔊</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Online: create / join -->
+  <div id="online" class="screen modal hidden">
+    <div class="modal-card online-card">
+      <div class="modal-head">
+        <h2>🌐 Play with friends</h2>
+        <button class="btn btn-small" data-close="online">✕</button>
+      </div>
+      <label class="field">Your name<input id="on-name" maxlength="16" placeholder="e.g. Captain Waffles" autocomplete="off" spellcheck="false" /></label>
+      <details id="on-server-wrap" class="field">
+        <summary>Server settings</summary>
+        <label class="field">Relay server (your Cloudflare Worker URL)<input id="on-server" placeholder="https://super-winner-relay.you.workers.dev" autocomplete="off" spellcheck="false" /></label>
+      </details>
+      <div class="online-row">
+        <button id="on-create" class="btn btn-play">➕ Create room</button>
+      </div>
+      <div class="online-or">or join a friend</div>
+      <div class="online-row">
+        <input id="on-code" class="code-input" maxlength="8" placeholder="CODE" autocomplete="off" spellcheck="false" />
+        <button id="on-join" class="btn">Join ▶</button>
+      </div>
+      <p id="on-status"></p>
+    </div>
+  </div>
+
+  <!-- Online: room -->
+  <div id="room" class="screen hidden">
+    <div class="lobby-card room-card">
+      <div class="subtitle">Room code</div>
+      <div id="room-code" class="room-code">-----</div>
+      <button id="room-copy" class="btn btn-small">🔗 Copy invite link</button>
+      <div id="room-link" class="room-link"></div>
+      <ul id="room-players" class="room-players"></ul>
+      <div id="room-bots" class="lobby-stats"></div>
+      <div class="lobby-buttons">
+        <button id="room-start" class="btn btn-play">▶ START ROUND</button>
+        <div id="room-wait" class="room-wait">Waiting for the host to start the round...</div>
+        <button id="room-leave" class="btn btn-small">🚪 Leave</button>
       </div>
     </div>
   </div>

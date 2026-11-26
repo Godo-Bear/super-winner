@@ -78,6 +78,7 @@ export function makeTextSprite(text, { color = '#ffffff', stroke = '#1b1530', fo
   sprite.scale.set((height * w) / h, height, 1);
   sprite.renderOrder = 10;
   sprite.userData.dispose = () => { tex.dispose(); mat.dispose(); };
+  mat.userData.netText = { text, opts: { color, stroke, fontSize, height, bg } };
   return sprite;
 }
 

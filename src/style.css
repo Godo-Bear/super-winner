@@ -172,3 +172,27 @@ html, body {
 .sug.blocked { background: #ffd0d5; border-color: var(--red); cursor: default; }
 .hz-chip.recharging { opacity: .55; }
 .hz-chip.recharging .bar { background: #9aa0a8; }
+
+/* ---------- Online ---------- */
+.btn-online { background: #7fd4ff; }
+.online-card { width: min(480px, 94vw); gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-weight: 800; font-size: 15px; }
+.field input, .code-input {
+  font-family: inherit; font-size: 20px; padding: 8px 12px; border: 3px solid var(--ink); border-radius: 12px; outline: none; min-width: 0;
+}
+details.field summary { cursor: pointer; opacity: .75; }
+details.field[open] summary { margin-bottom: 6px; }
+.online-row { display: flex; gap: 8px; justify-content: center; }
+.online-row .code-input { flex: 1; text-transform: uppercase; letter-spacing: 6px; text-align: center; font-weight: 900; }
+.online-or { text-align: center; opacity: .6; font-weight: 800; }
+#on-status { min-height: 22px; text-align: center; margin: 4px 0 0; font-weight: 800; }
+.btn:disabled { opacity: .5; pointer-events: none; }
+#room { background: radial-gradient(ellipse at center, rgba(30,20,70,.2), rgba(30,20,70,.6)); }
+.room-code {
+  font-family: 'Arial Black', 'Trebuchet MS', Impact, sans-serif; font-size: clamp(56px, 14vw, 96px); letter-spacing: 10px; color: var(--yellow);
+  -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 0 6px 0 var(--ink); margin: 4px 0 8px;
+}
+.room-link { font-size: 13px; word-break: break-all; margin-top: 6px; text-shadow: 0 2px 0 var(--ink); }
+.room-players { list-style: none; padding: 0; margin: 14px auto; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 520px; }
+.room-players li { background: var(--panel); border: 3px solid var(--ink); border-radius: 12px; padding: 6px 12px; font-weight: 800; }
+.room-wait { font-weight: 800; text-shadow: 0 2px 0 var(--ink); }

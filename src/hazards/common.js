@@ -9,6 +9,14 @@ export const WARN_WALL_MAT = new THREE.MeshBasicMaterial({ color: 0xff3030, tran
 export const YELLOW_WARN_MAT = new THREE.MeshBasicMaterial({ color: 0xfff04a, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide });
 export const SHADOW_MAT = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false });
 
+// named so online clients map them to their own (locally animated) copies
+WARN_MAT.userData.netName = 'warn';
+WARN_RING_MAT.userData.netName = 'warnRing';
+WARN_WALL_MAT.userData.netName = 'warnWall';
+YELLOW_WARN_MAT.userData.netName = 'yellowWarn';
+SHADOW_MAT.userData.netName = 'shadow';
+export const NAMED_MATERIALS = { warn: WARN_MAT, warnRing: WARN_RING_MAT, warnWall: WARN_WALL_MAT, yellowWarn: YELLOW_WARN_MAT, shadow: SHADOW_MAT };
+
 const discGeo = new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2);
 const ringGeo = new THREE.RingGeometry(0.88, 1, 28).rotateX(-Math.PI / 2);
 const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 28, 1, true).translate(0, 0.5, 0);
@@ -215,13 +223,16 @@ export function stormClouds(parent, color = 0x4a5160, count = 18) {
 
 /**
  * Falling precipitation (rain / snow / acid) drawn as Points around the camera.
+ * `owner` is anything with { group, game } (a hazard, or the online scene decoder).
+ * Online, clients simulate their own drops from the parameters in userData.netLocal.
  */
 export class Precipitation {
-  constructor(hazard, { count = 1500, color = 0x9fc8ff, speed = 30, size = 0.18, drift = 0 }) {
-    this.h = hazard;
+  constructor(owner, { count = 1500, color = 0x9fc8ff, speed = 30, size = 0.18, drift = 0 }, parent = owner.group) {
+    this.game = owner.game;
     this.count = count;
     this.speed = speed;
     this.drift = drift;
+    this.intensity = 1;
     const pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 70;
@@ -233,13 +244,31 @@ export class Precipitation {
     this.mat = new THREE.PointsMaterial({ color, size, transparent: true, opacity: 0.8, depthWrite: false });
     this.points = new THREE.Points(this.geo, this.mat);
     this.points.frustumCulled = false;
-    hazard.group.add(this.points);
-    hazard.track(this.geo);
-    hazard.track(this.mat);
+    this.params = { kind: 'precip', count, color, speed, size, drift, intensity: 1 };
+    this.points.userData.netLocal = this.params;
+    parent.add(this.points);
+    this.parent = parent;
+    owner.track?.(this);
   }
 
-  update(dt, intensity = 1) {
-    const cam = this.h.game.controller.camTarget;
+  /** Online clients: update parameters sent by the host. */
+  set(p) {
+    this.drift = p.drift;
+    this.intensity = p.intensity;
+  }
+
+  dispose() {
+    this.parent.remove(this.points);
+    this.geo.dispose();
+    this.mat.dispose();
+  }
+
+  update(dt, intensity = this.intensity) {
+    if (this.params.intensity !== Math.round(intensity * 20) / 20 || this.params.drift !== this.drift) {
+      this.params = { ...this.params, intensity: Math.round(intensity * 20) / 20, drift: this.drift };
+      this.points.userData.netLocal = this.params;
+    }
+    const cam = this.game.controller.camTarget;
     const p = this.geo.attributes.position.array;
     const n = Math.floor(this.count * intensity);
     this.geo.setDrawRange(0, n);

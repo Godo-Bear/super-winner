@@ -88,6 +88,8 @@ export class Character {
 
   update(dt) {
     if (!this.alive) return;
+    // online: remote humans (on the host) and everyone else (on clients) are moved by the network
+    if (this.remote || this.netDriven) { this.updateVisual(dt); return; }
     const game = this.game, env = game.env;
     this.speedBoost = Math.max(0, this.speedBoost - dt);
     this.jetpack = Math.max(0, this.jetpack - dt);
@@ -127,6 +129,7 @@ export class Character {
     if (!wasGround && this.onGround && this.isPlayer) game.audio.land();
 
     if (this.pos.y < KILL_Y) {
+      if (game.mode === 'client') { this.pos.y = KILL_Y; this.vel.set(0, 0, 0); return; } // the host decides
       game.killCharacter(this, 'fell off the island', this.recentAttacker());
       return;
     }

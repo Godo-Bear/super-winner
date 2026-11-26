@@ -229,7 +229,7 @@ export class Tacos extends Hazard {
       for (const c of this.living()) {
         if (c.hp < 100 && Math.hypot(c.pos.x - t.x, c.pos.z - t.z) < 1 && Math.abs(c.pos.y - t.y) < 1.5) {
           c.hp = Math.min(100, c.hp + 8);
-          if (c.isPlayer) { this.audio.eat(); this.game.ui.toast('🌮 Yum! +8 HP'); }
+          this.game.notify(c, '🌮 Yum! +8 HP', 'eat');
           this.particles.burst(t.x, t.y + 0.3, t.z, [0xf2c14e, 0x5aa43a], 8, 3, 0.2, 0.5);
           this.group.remove(t.m);
           this.tacos.splice(i, 1);

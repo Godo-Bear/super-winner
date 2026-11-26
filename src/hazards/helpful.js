@@ -138,7 +138,7 @@ class PickupHazard extends Hazard {
         if (Math.hypot(c.pos.x - p.x, c.pos.z - p.z) < 1.3 && Math.abs(c.pos.y + 1 - p.y) < 2) {
           this.apply(c);
           this.particles.burst(p.x, p.y, p.z, [0xffffff, 0xffe066, 0x5dff9e], 16, 5, 0.25, 0.6);
-          if (c.isPlayer) this.audio.powerup(); else this.audio.pop();
+          this.audio.pop();
           this.group.remove(p.mesh);
           this.pickups.splice(i, 1);
           break;
@@ -156,7 +156,7 @@ export class ShieldPickup extends PickupHazard {
     this.track(m.material);
     return m;
   }
-  apply(c) { c.shield = Math.max(c.shield, 60); if (c.isPlayer) this.game.ui.toast('🛡️ Shield! (blocks 60 damage)'); }
+  apply(c) { c.shield = Math.max(c.shield, 60); this.game.notify(c, '🛡️ Shield! (blocks 60 damage)', 'powerup'); }
 }
 
 export class JetpackPickup extends PickupHazard {
@@ -167,7 +167,7 @@ export class JetpackPickup extends PickupHazard {
     g.add(block(0.25, 0.9, 0.25, 0xff5a1f, 0.25, -0.1, -0.25));
     return g;
   }
-  apply(c) { c.jetpack = 12; if (c.isPlayer) this.game.ui.toast('🚀 Jetpack! HOLD jump to fly'); }
+  apply(c) { c.jetpack = 12; this.game.notify(c, '🚀 Jetpack! HOLD jump to fly', 'powerup'); }
 }
 
 export class SpeedPickup extends PickupHazard {
@@ -180,7 +180,7 @@ export class SpeedPickup extends PickupHazard {
     g.scale.setScalar(1.4);
     return g;
   }
-  apply(c) { c.speedBoost = 12; if (c.isPlayer) this.game.ui.toast('⚡ SPEED BOOST!'); }
+  apply(c) { c.speedBoost = 12; this.game.notify(c, '⚡ SPEED BOOST!', 'powerup'); }
 }
 
 export class HealPickup extends PickupHazard {
@@ -192,7 +192,7 @@ export class HealPickup extends PickupHazard {
     g.add(new THREE.Mesh(boxGeo(0.3, 0.9, 0.3), m));
     return g;
   }
-  apply(c) { c.hp = Math.min(100, c.hp + 50); if (c.isPlayer) this.game.ui.toast('💚 +50 HP'); }
+  apply(c) { c.hp = Math.min(100, c.hp + 50); this.game.notify(c, '💚 +50 HP', 'powerup'); }
 }
 
 export default { wall: Wall, bunker: Bunker, shield: ShieldPickup, jetpack: JetpackPickup, speed: SpeedPickup, heal: HealPickup };

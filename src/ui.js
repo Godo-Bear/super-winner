@@ -1,4 +1,5 @@
 import { isWordAllowed } from './filter.js';
+import { DEFAULT_RELAY } from './net/connection.js';
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -28,12 +29,106 @@ export class UI {
     $('spec-lobby').addEventListener('click', () => game.toLobby());
     this.refreshMute();
     this.bindWriter();
+    this.bindOnline();
+  }
+
+  // ---------------- Online menus ----------------
+  bindOnline() {
+    const g = this.game;
+    const store = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
+    const read = (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
+    $('on-name').value = read('sw_name');
+    $('on-server').value = read('sw_relay') || DEFAULT_RELAY;
+    if (DEFAULT_RELAY && !read('sw_relay')) $('on-server-wrap').removeAttribute('open');
+    else $('on-server-wrap').setAttribute('open', '');
+    const params = new URLSearchParams(location.search);
+    if (params.get('room')) {
+      $('on-code').value = params.get('room').toUpperCase().slice(0, 8);
+      $('online').classList.remove('hidden');
+    }
+    $('btn-online').addEventListener('click', () => { g.audio.unlock(); this.onlineStatus(''); $('online').classList.remove('hidden'); });
+    $('on-code').addEventListener('input', () => { $('on-code').value = $('on-code').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+    const details = () => {
+      const name = $('on-name').value.trim().slice(0, 16);
+      const server = $('on-server').value.trim();
+      if (!name) { this.onlineStatus('Pick a name first!', true); return null; }
+      if (!server) { this.onlineStatus('Enter the relay server address (your Cloudflare Worker URL).', true); $('on-server-wrap').setAttribute('open', ''); return null; }
+      store('sw_name', name);
+      store('sw_relay', server);
+      return { name, server };
+    };
+    const busy = (b) => { $('on-create').disabled = b; $('on-join').disabled = b; };
+    $('on-create').addEventListener('click', async () => {
+      const d = details();
+      if (!d) return;
+      busy(true);
+      this.onlineStatus('Creating room...');
+      try { g.audio.unlock(); await g.net.create(d.server, d.name); $('online').classList.add('hidden'); } catch (e) { this.onlineStatus(e.message, true); }
+      busy(false);
+    });
+    $('on-join').addEventListener('click', async () => {
+      const d = details();
+      if (!d) return;
+      const code = $('on-code').value.trim();
+      if (code.length < 4) { this.onlineStatus('Enter the room code your friend gave you.', true); return; }
+      busy(true);
+      this.onlineStatus('Joining...');
+      try { g.audio.unlock(); await g.net.join(d.server, code, d.name); $('online').classList.add('hidden'); } catch (e) { this.onlineStatus(e.message, true); }
+      busy(false);
+    });
+    $('room-start').addEventListener('click', () => g.startRound());
+    $('room-leave').addEventListener('click', () => g.net.leave());
+    $('room-copy').addEventListener('click', async () => {
+      const url = `${location.origin}${location.pathname}?room=${g.net.code}`;
+      try { await navigator.clipboard.writeText(url); this.toast('🔗 Invite link copied!'); $('room-copy').textContent = '✔ Copied'; }
+      catch { $('room-link').textContent = url; }
+    });
+  }
+
+  onlineStatus(text, error = false) {
+    $('on-status').textContent = text;
+    $('on-status').classList.toggle('red', error);
+  }
+
+  /** Room screen shown instead of the lobby while connected. */
+  showRoom() {
+    const net = this.game.net;
+    if (!net.active || this.game.state !== 'lobby') return;
+    $('lobby').classList.add('hidden');
+    $('room').classList.remove('hidden');
+    $('room-code').textContent = net.code;
+    $('room-copy').textContent = '🔗 Copy invite link';
+    $('room-players').innerHTML = net.players.map((p) =>
+      `<li>${p.host ? '👑' : '🙂'} ${esc(p.name)}${p.id === net.conn.id ? ' <small>(you)</small>' : ''}</li>`).join('');
+    const bots = Math.max(0, 12 - net.players.length);
+    $('room-bots').textContent = bots ? `+ ${bots} bot${bots > 1 ? 's' : ''} will fill the island` : 'Full island!';
+    $('room-start').classList.toggle('hidden', !net.isHost);
+    $('room-wait').classList.toggle('hidden', net.isHost);
+    const playing = net.isClient && net.playing;
+    $('room-wait').textContent = playing ? 'A round is in progress... you will join the next one.' : 'Waiting for the host to start the round...';
+  }
+
+  notice(text) {
+    $('room').classList.add('hidden');
+    this.showLobby();
+    $('online').classList.remove('hidden');
+    this.onlineStatus(text, true);
   }
 
   refreshMute() { $('btn-mute').textContent = this.game.audio.muted ? '🔇' : '🔊'; }
 
   // ---------------- Lobby ----------------
   showLobby() {
+    if (this.game.net && this.game.net.active) {
+      $('hud').classList.add('hidden');
+      $('results').classList.add('hidden');
+      $('touch').classList.add('hidden');
+      this.closeWriter();
+      this.countdown('');
+      this.showRoom();
+      return;
+    }
+    $('room').classList.add('hidden');
     const s = this.game.save;
     $('lobby-coins').textContent = s.coins;
     const total = this.game.dictionaryCount ?? 0;
@@ -48,6 +143,8 @@ export class UI {
 
   showHUD() {
     $('lobby').classList.add('hidden');
+    $('room').classList.add('hidden');
+    $('online').classList.add('hidden');
     $('results').classList.add('hidden');
     $('index').classList.add('hidden');
     $('help').classList.add('hidden');
@@ -103,19 +200,20 @@ export class UI {
     $('hud-effects').textContent = fx.join(' ');
     const alive = g.characters.filter((c) => c.alive).length;
     $('alive').textContent = `👥 ${alive} alive`;
-    $('writer-status').textContent = g.writer ? g.writer.statusText() : '';
+    const data = g.hudData();
+    $('writer-status').textContent = data.writer;
 
-    const hz = g.hazards.list;
+    const hz = data.hazards;
     $('hazard-count').textContent = `${hz.length}/${g.hazards.max}`;
     const key = hz.map((h) => `${h.uid}${h.recharging ? 'r' : ''}`).join(',');
     if (key !== this.lastHazardKey) {
       this.lastHazardKey = key;
       $('hazard-list').innerHTML = hz.slice().reverse().map((h) =>
-        `<div class="hz-chip ${h.recharging ? 'recharging' : ''}" data-uid="${h.uid}">${h.icon} ${esc(h.label)}<span class="by">${esc(h.owner ? h.owner.name : '')}</span><div class="bar"></div></div>`).join('');
+        `<div class="hz-chip ${h.recharging ? 'recharging' : ''}" data-uid="${h.uid}">${h.icon} ${esc(h.label)}<span class="by">${esc(h.owner)}</span><div class="bar"></div></div>`).join('');
     }
     for (const h of hz) {
       const el = document.querySelector(`.hz-chip[data-uid="${h.uid}"] .bar`);
-      if (el) el.style.width = `${Math.max(0, 1 - h.t / h.duration) * 100}%`;
+      if (el) el.style.width = `${h.frac * 100}%`;
     }
   }
 
@@ -170,11 +268,13 @@ export class UI {
   }
 
   showSpectate(name) {
+    $('spec-lobby').textContent = this.game.net.active ? '🏠 Room' : '🏠 Lobby';
     $('spectate').classList.remove('hidden');
     $('spectate-name').textContent = name;
   }
 
   showResults(title, lines) {
+    $('btn-results-lobby').textContent = this.game.net.active ? 'Back to room' : 'Back to lobby';
     $('results-title').textContent = title;
     $('results-body').innerHTML = lines.map((l) => `<div>${l}</div>`).join('');
     $('results').classList.remove('hidden');

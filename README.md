@@ -46,6 +46,73 @@ npm run build
 * The lobby's **Word Index** tracks every dictionary word you have seen (undiscovered words show as `???`) and every
   Mystery Blob you have created.
 
+## Playing online with friends
+
+Click **🌐 Play with friends**, pick a name, then **Create room** and share the 5-letter code (or the
+**Copy invite link** button). Friends enter the code and press **Join**. The host presses **Start round**, and bots
+fill the remaining spots up to 12. Anyone who joins mid-round spectates until the next one.
+
+### 1. Deploy the relay (Cloudflare Worker)
+
+The `worker/` folder is a tiny Cloudflare Worker with one Durable Object per room. It only forwards messages; the
+game itself runs in the host's browser. It works on the Workers free plan.
+
+```bash
+cd worker
+```
+
+```bash
+npm install
+```
+
+```bash
+npx wrangler login
+```
+
+```bash
+npx wrangler deploy
+```
+
+Wrangler prints your URL, e.g. `https://super-winner-relay.<you>.workers.dev`. Opening it in a browser should say
+"Super Winner relay is running ✔".
+
+### 2. Point the game at it
+
+Either type that URL into **Play with friends → Server settings** (it is remembered), or bake it into the build so
+nobody has to type it:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `VITE_RELAY_URL` in `.env` and rebuild with `npm run build`. Host the `dist/` folder anywhere static
+(Cloudflare Pages, GitHub Pages, Netlify...). For example, with Cloudflare Pages:
+
+```bash
+npx wrangler pages deploy dist --project-name super-winner
+```
+
+### Testing online play locally
+
+`npm run relay` starts the same relay on your machine (`ws://localhost:8787`). Run `npm run dev` too, open the game in
+two browser windows, and use `localhost:8787` as the server address. Friends on your Wi-Fi can use your computer's
+LAN IP instead (start Vite with `npx vite --host`).
+
+### How it works
+
+* **Host-authoritative:** the room creator's browser runs the real game (bots, hazards, writer turns, damage) and
+  sends a snapshot about 20 times a second.
+* **Instant movement:** each friend's browser moves their own character locally and reports it about 30 times a second.
+  The host applies hazards to it and sends back knockbacks, pulls, slow-downs, HP and power-ups.
+* **Hazards sync automatically:** `src/net/scenesync.js` mirrors everything under the host's hazard scene graph
+  (meshes, materials, telegraphs), so any hazard you add works online without extra code. Particles and sounds are
+  forwarded as events; rain and snow are simulated locally from their settings.
+* Writers: when a friend is picked, their own writer box opens; the host checks their word with the same filter.
+* Coins and the Word Index are saved in each player's own browser.
+
+Limits to know about: the host should keep the game tab open and in front (browsers slow down background tabs,
+which pauses the game for everyone), and if the host leaves, the room closes. Up to 12 players per room.
+
 ## Project layout
 
 ```
@@ -63,6 +130,10 @@ src/
   audio.js           Web Audio synthesised sound effects
   particles.js       pooled InstancedMesh particles
   save.js            localStorage save data
+  net/
+    connection.js    WebSocket connection to the relay
+    online.js        rooms, host snapshots/corrections, client prediction and interpolation
+    scenesync.js     generic hazard scene replication (host encoder / client decoder)
   hazards/
     index.js         registry + HazardManager (stacking, cap, recharge)
     base.js          Hazard base class (read this first)
@@ -75,6 +146,9 @@ src/
     helpful.js       wall, bunker, shield, jetpack, speed, heal
     silly.js         banana, giant ball, tacos, trampoline
     mystery.js       Mystery Blob generator for unknown words
+worker/              Cloudflare Worker + Durable Object relay (deploy this for online play)
+  src/relay.js       room logic shared with the local relay
+scripts/dev-relay.mjs  local relay for testing (`npm run relay`)
 ```
 
 ## Adding new words
@@ -151,6 +225,8 @@ Hazard rules of thumb:
   Types: `avoid` (circle), `hide` (go to shelter), `high` (climb the hill), `ring` (stay inside a radius), `seek` (pickup).
 * Telegraph before anything can hurt, and give instant-kill hazards a counterplay.
 * Set `this.recurring = false` if the hazard should not come back after it finishes.
+* For online play, change characters only through `this.hit`, `knock`, `pos`/`vel`, `mods` and the power-up fields,
+  and use `this.game.notify(character, text)` for personal messages. Everything else syncs automatically.
 
 ## Filtering words
 

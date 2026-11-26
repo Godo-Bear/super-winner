@@ -15,8 +15,9 @@ import weaponHazards from './hazards/weapons.js';
 import natureHazards from './hazards/nature.js';
 import helpfulHazards from './hazards/helpful.js';
 import sillyHazards from './hazards/silly.js';
-import { WriterSystem } from './writer.js';
+import { WriterSystem, CATEGORY_COLORS } from './writer.js';
 import { UI, esc } from './ui.js';
+import { Online } from './net/online.js';
 import { loadSave, writeSave } from './save.js';
 import * as words from './words.js';
 import { clamp, pick, rand } from './utils.js';
@@ -25,6 +26,7 @@ const BOT_COUNT = 11;
 const SHIRTS = [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93, 0xff924c, 0xf15bb5, 0x00bbf9, 0x00f5d4, 0x9b5de5, 0xfee440, 0xef476f, 0x06d6a0];
 const PANTS = [0x2b2d42, 0x3d405b, 0x264653, 0x6d597a, 0x463f3a, 0x1d3557];
 const SKINS = [0xffd6a5, 0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffe0bd, 0x9fe870, 0x7ec8e3];
+const PLAYER_COLORS = { skin: 0xffd6a5, shirt: 0x22c55e, pants: 0x1d3557, hat: 0xffd23f };
 
 export class Game {
   constructor(container) {
@@ -33,6 +35,7 @@ export class Game {
     this.dictionaryCount = words.DICTIONARY.length;
     this.time = 0;
     this.state = 'lobby';
+    this.mode = 'solo'; // 'solo' | 'host' | 'client'
     this.shake = 0;
     this.save = loadSave();
     this.roundCoins = 0;
@@ -53,6 +56,8 @@ export class Game {
     scene.fog = new THREE.Fog(this.baseFog.clone(), 70, 230);
     this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 600);
     this.camera.position.set(30, 25, 40);
+    this.hazardRoot = new THREE.Group();
+    scene.add(this.hazardRoot);
 
     this.buildSkyAndLights();
     this.island = new Island(scene);
@@ -64,6 +69,7 @@ export class Game {
     this.writer = new WriterSystem(this);
     this.controller = new PlayerController(this);
     this.ui = new UI(this);
+    this.net = new Online(this);
     this.botNotices = botNotices;
 
     this.env = {};
@@ -71,14 +77,7 @@ export class Game {
     this.cur = { fogFar: 230, fogNear: 70, fogColor: this.baseFog.clone(), sky: new THREE.Color(1, 1, 1), light: 1, ground: new THREE.Color(1, 1, 1) };
 
     this.characters = [];
-    this.player = new Character(this, { id: 0, name: 'You', isPlayer: true, colors: { skin: 0xffd6a5, shirt: 0x22c55e, pants: 0x1d3557, hat: 0xffd23f } });
-    this.characters.push(this.player);
-    for (let i = 0; i < BOT_COUNT; i++) {
-      const c = new Character(this, {
-        id: i + 1, name: 'Bot', colors: { skin: pick(SKINS), shirt: SHIRTS[i % SHIRTS.length], pants: pick(PANTS), hat: Math.random() < 0.4 ? pick(SHIRTS) : null },
-      });
-      this.characters.push(c);
-    }
+    this.makeSoloRoster();
 
     addEventListener('resize', () => this.resize());
     this.resize();
@@ -150,11 +149,60 @@ export class Game {
     e.fogFar = 230; e.fogNear = 70; e.fogColor = null; e.skyTint = null; e.light = 1; e.groundTint = null;
   }
 
+  // ---------------- Characters / rosters ----------------
+  clearCharacters() {
+    for (const c of this.characters) {
+      this.scene.remove(c.mesh);
+      c.label?.userData.dispose?.();
+      for (const m of c.model.materials) m.dispose();
+    }
+    if (this.spectator) { this.scene.remove(this.spectator.mesh); this.spectator = null; }
+    this.characters = [];
+  }
+
+  /** Single player (and online host): you + 11 bots. */
+  makeSoloRoster() {
+    this.clearCharacters();
+    this.player = new Character(this, { id: 0, name: this.mode === 'host' ? this.net.myName : 'You', isPlayer: true, colors: PLAYER_COLORS });
+    this.characters.push(this.player);
+    for (let i = 0; i < BOT_COUNT; i++) {
+      this.characters.push(new Character(this, {
+        id: i + 1, name: 'Bot', colors: { skin: pick(SKINS), shirt: SHIRTS[i % SHIRTS.length], pants: pick(PANTS), hat: Math.random() < 0.4 ? pick(SHIRTS) : null },
+      }));
+    }
+  }
+
+  /** Online client: copy the host's roster. Characters not ours are driven by snapshots. */
+  applyRoster(roster, myClientId) {
+    this.clearCharacters();
+    for (const r of roster) {
+      const mine = r.cid === myClientId;
+      const c = new Character(this, { id: r.id, name: r.name, isPlayer: mine, colors: r.colors });
+      c.isBot = false;
+      c.netDriven = !mine;
+      c.spawn(r.pos[0], r.pos[2], r.pos[1]);
+      if (!r.alive) { c.alive = false; c.mesh.visible = false; }
+      this.characters.push(c);
+    }
+    this.player = this.characters.find((c) => c.isPlayer);
+    if (!this.player) {
+      // joined mid-round: watch until the next one
+      this.spectator = new Character(this, { id: -1, name: this.net.myName || 'You', isPlayer: true, colors: PLAYER_COLORS });
+      this.spectator.alive = false;
+      this.spectator.hp = 0;
+      this.player = this.spectator;
+    }
+  }
+
+  charById(id) { return this.characters.find((c) => c.id === id) || null; }
+
   // ---------------- Round flow ----------------
   startRound() {
+    if (this.mode === 'client') return;
     this.audio.unlock();
     this.hazards.clear();
     this.particles.clear();
+    if (this.mode === 'host') this.net.assignHumans();
     const names = randomBotNames(BOT_COUNT);
     const n = this.characters.length;
     const offset = Math.random() * Math.PI * 2;
@@ -171,24 +219,54 @@ export class Game {
     this.roundTime = 0;
     this.roundCoins = 0;
     this.spectateTarget = null;
+    this.deathShown = false;
     this.save.games++;
     writeSave(this.save);
     this.ui.showHUD();
     this.controller.yaw = Math.atan2(this.player.pos.x, this.player.pos.z);
     this.controller.camTarget.copy(this.player.pos);
-    if (this.writer) this.writer.reset();
+    this.writer.reset();
     this.ui.announce('Welcome to', 'WORD STORM ISLAND', 'Survive the words. Last one standing wins!', '#7dffb0');
+    this.audio.announce();
+    if (this.mode === 'host') this.net.hostStarted();
+  }
+
+  /** Online client: the host started a round. */
+  clientRoundStarted() {
+    this.audio.unlock();
+    this.hazards.clear();
+    this.particles.clear();
+    this.state = 'playing';
+    this.roundTime = 0;
+    this.roundCoins = 0;
+    this.spectateTarget = null;
+    this.deathShown = !this.player.alive;
+    this.player.kills = 0;
+    this.ui.showHUD();
+    this.controller.yaw = Math.atan2(this.player.pos.x, this.player.pos.z);
+    this.controller.camTarget.copy(this.player.pos);
+    if (this.player.alive) {
+      this.save.games++;
+      writeSave(this.save);
+      this.ui.announce('Welcome to', 'WORD STORM ISLAND', 'Survive the words. Last one standing wins!', '#7dffb0');
+    } else {
+      this.ui.announce('Round in progress', 'SPECTATING', "You'll play in the next round!", '#7fd4ff');
+      this.cycleSpectate(1);
+    }
     this.audio.announce();
   }
 
   toLobby() {
+    const wasActive = this.state !== 'lobby';
     this.state = 'lobby';
     this.hazards.clear();
     this.particles.clear();
-    if (this.writer) this.writer.cancel();
+    this.writer.cancel();
     for (const c of this.characters) { c.alive = false; c.mesh.visible = false; }
     this.resetEnv();
     this.controller.releasePointer();
+    if (this.mode === 'host') this.net.hostToRoom(wasActive);
+    if (this.mode === 'client') { this.net.inRound = false; this.net.decoder?.reset(); this.island.setDynamicColliders([]); }
     this.ui.showLobby();
   }
 
@@ -199,24 +277,36 @@ export class Game {
       this.state = 'ending';
       this.endTimer = 2.5;
       this.winner = alive[0] || null;
-      if (this.writer) this.writer.cancel();
-      if (this.winner) this.ui.announce('🏆 Winner', this.winner.name.toUpperCase(), this.winner.isPlayer ? 'YOU SURVIVED THE WORD STORM!' : 'Last one standing!', '#7dffb0');
+      this.writer.cancel();
+      this.announceWinner(this.winner);
+      this.net.event('win', this.winner ? this.winner.id : -1);
     }
+  }
+
+  announceWinner(w) {
+    if (w) this.ui.announce('🏆 Winner', w.name.toUpperCase(), w.isPlayer ? 'YOU SURVIVED THE WORD STORM!' : 'Last one standing!', '#7dffb0');
   }
 
   endRound() {
     this.state = 'ended';
     const w = this.winner;
-    const lines = [];
+    if (w && w.remote) this.giveCoins(w, 50, 'Victory!');
+    this.showResults(w);
+    this.net.hostEnded(w);
+  }
+
+  /** Results screen (single player, host and clients). */
+  showResults(w) {
     if (w && w.isPlayer) {
       this.save.wins++;
-      this.addCoins(50, 'Victory!');
+      if (this.mode !== 'client') this.addCoins(50, 'Victory!');
       this.audio.win();
     } else {
       this.audio.lose();
     }
     this.save.bestKills = Math.max(this.save.bestKills, this.player.kills || 0);
     writeSave(this.save);
+    const lines = [];
     lines.push(w ? `🏆 Winner: <b>${esc(w.name)}</b>` : '🤝 Nobody survived!');
     lines.push(`⏱️ Round time: ${Math.floor(this.roundTime / 60)}:${String(Math.floor(this.roundTime % 60)).padStart(2, '0')}`);
     lines.push(`🗡️ Kills with your words: ${this.player.kills || 0}`);
@@ -226,12 +316,38 @@ export class Game {
     this.ui.showResults(w && w.isPlayer ? '🎉 YOU WIN! 🎉' : 'Round over', lines);
   }
 
+  clientRoundEnded(winner, time) {
+    this.state = 'ended';
+    this.roundTime = time;
+    this.showResults(winner);
+  }
+
   addCoins(n, reason) {
     this.save.coins += n;
     this.roundCoins += n;
     writeSave(this.save);
     this.ui.toast(`+${n} 🪙 ${reason}`);
     this.audio.coin();
+  }
+
+  /** Coins for any human: local player directly, online friends via the network. */
+  giveCoins(ch, n, reason) {
+    if (ch.isPlayer) this.addCoins(n, reason);
+    else if (ch.remote) this.net.sendDirect(ch.clientId, 'coins', n, reason);
+  }
+
+  /** A personal message for one character (toast + optional sound). */
+  notify(ch, text, sound) {
+    if (ch.isPlayer) {
+      this.ui.toast(text);
+      if (sound) this.audio[sound]?.();
+    } else if (ch.remote) this.net.sendDirect(ch.clientId, 'toast', text, sound || null);
+  }
+
+  /** Kill-feed line for everyone. */
+  feed(html) {
+    this.ui.killFeed(html);
+    this.net.event('f', html);
   }
 
   discover(entry, word) {
@@ -247,10 +363,31 @@ export class Game {
     writeSave(this.save);
   }
 
+  /** Big word announcement when a writer's word lands (and tell everyone online). */
+  announceWord(writer, h) {
+    const info = {
+      wid: writer.id, label: h.label, icon: h.icon, hint: h.hint, entry: h.entry ? h.entry.id : null, word: h.word,
+      color: h.entry ? CATEGORY_COLORS[h.entry.category] : '#c4a7ff',
+    };
+    this.showWord(info);
+    this.net.event('word', info);
+  }
+
+  showWord(info) {
+    const writer = this.charById(info.wid);
+    const who = writer && writer.isPlayer ? 'You wrote' : `${writer ? writer.name : 'Someone'} wrote`;
+    this.ui.announce(who, `${info.icon} ${info.label.toUpperCase()}`, info.hint, info.color);
+    this.audio.announce();
+    this.addShake(0.25);
+    this.discover(info.entry ? words.DICTIONARY.find((e) => e.id === info.entry) : null, info.entry ? null : info.word);
+  }
+
+  clientWord(info) { this.showWord(info); }
+
   // ---------------- Combat helpers ----------------
   /** Deal damage from a hazard. `opts.knock` = {x,y,z}, `opts.cause` = kill feed text. */
   damage(ch, amount, source = null, opts = {}) {
-    if (!ch.alive || this.state === 'lobby' || this.state === 'ended') return 0;
+    if (!ch.alive || this.state === 'lobby' || this.state === 'ended' || this.mode === 'client') return 0;
     if (opts.knock) ch.knock(opts.knock.x || 0, opts.knock.y || 0, opts.knock.z || 0);
     if (amount <= 0) return 0;
     if (source) ch.lastHit = { source, time: this.time };
@@ -259,7 +396,7 @@ export class Game {
       const absorbed = Math.min(ch.shield, dmg);
       ch.shield -= absorbed;
       dmg -= absorbed;
-      if (ch.shield <= 0 && ch.isPlayer) this.ui.toast('🛡️ Shield broken!');
+      if (ch.shield <= 0) this.notify(ch, '🛡️ Shield broken!');
     }
     ch.hp -= dmg;
     ch.hurtFlash = 0.25;
@@ -267,7 +404,7 @@ export class Game {
       if (dmg > 3 || Math.random() < 0.15) this.audio.hurt();
       this.ui.hurt(dmg);
       this.addShake(Math.min(0.6, dmg / 60));
-    }
+    } else if (ch.remote && dmg > 0) this.net.queueHurt(ch.clientId, dmg);
     if (ch.hp <= 0) this.killCharacter(ch, opts.cause || source?.killVerb, source);
     return dmg;
   }
@@ -290,33 +427,58 @@ export class Game {
   }
 
   killCharacter(ch, cause, source) {
-    if (!ch.alive) return;
+    if (!ch.alive || this.mode === 'client') return;
     ch.alive = false;
     ch.hp = 0;
     ch.mesh.visible = false;
     const cl = ch.colors;
     this.particles.burst(ch.pos.x, ch.pos.y + 1.2, ch.pos.z, [cl.shirt, cl.skin, cl.pants], 30, 9, 0.4, 1.2);
-    const near = this.camera.position.distanceTo(ch.pos) < 40;
-    if (near || ch.isPlayer) this.audio.death();
     const killer = source?.owner || null;
     const verb = cause || (source ? `was wiped out by ${source.label}` : 'was eliminated');
+    this.showKill(ch, verb, killer);
+    this.net.event('kill', ch.id, verb, killer ? killer.id : -1);
+    if (killer && killer !== ch && this.state === 'playing') {
+      killer.kills = (killer.kills || 0) + 1;
+      this.giveCoins(killer, 10, `Your word got ${ch.name}!`);
+    }
+    if (ch.isPlayer) this.onLocalDeath();
+    else if (this.spectateTarget === ch) this.cycleSpectate(1);
+    this.checkEnd();
+  }
+
+  /** Kill-feed line + sound, written from this player's point of view. */
+  showKill(ch, verb, killer) {
+    const near = this.camera.position.distanceTo(ch.pos) < 40;
+    if (near || ch.isPlayer) this.audio.death();
     let html = `💀 <b class="${ch.isPlayer ? 'me' : ''}">${esc(ch.name)}</b> ${esc(verb)}`;
     if (killer && killer !== ch) html += ` <span style="opacity:.7">(${killer.isPlayer ? '<span class="me">your</span>' : esc(killer.name) + "'s"} word)</span>`;
     this.ui.killFeed(html);
-    if (killer && killer !== ch && this.state === 'playing') {
-      killer.kills = (killer.kills || 0) + 1;
-      if (killer.isPlayer) this.addCoins(10, `Your word got ${ch.name}!`);
-    }
-    if (ch.isPlayer) {
-      this.controller.releasePointer();
-      this.ui.closeWriter();
-      this.audio.lose();
-      this.spectateTarget = null;
-      this.cycleSpectate(1);
-    } else if (this.spectateTarget === ch) {
-      this.cycleSpectate(1);
-    }
-    this.checkEnd();
+  }
+
+  /** Online client: the host reported a knockout. */
+  clientKill(victimId, verb, killerId) {
+    const ch = this.charById(victimId);
+    if (!ch) return;
+    const killer = this.charById(killerId);
+    if (killer && killer.isPlayer && killer !== ch) killer.kills = (killer.kills || 0) + 1;
+    ch.alive = false;
+    ch.mesh.visible = false;
+    this.showKill(ch, verb, killer);
+    if (ch.isPlayer) this.onLocalDeath();
+    else if (this.spectateTarget === ch) this.cycleSpectate(1);
+  }
+
+  onLocalDeath() {
+    if (this.deathShown) return;
+    this.deathShown = true;
+    this.player.alive = false;
+    this.player.mesh.visible = false;
+    this.controller.releasePointer();
+    this.ui.closeWriter();
+    if (this.net.isClient) this.net.writing = false;
+    this.audio.lose();
+    this.spectateTarget = null;
+    this.cycleSpectate(1);
   }
 
   cycleSpectate(dir) {
@@ -330,11 +492,12 @@ export class Game {
 
   addShake(amount, x, z) {
     let f = 1;
-    if (x !== undefined) {
+    if (x !== undefined && x !== null) {
       const t = this.controller.camTarget;
       f = clamp(1.2 - Math.hypot(t.x - x, t.z - z) / 40, 0.15, 1);
     }
     this.shake = Math.min(1.5, Math.max(this.shake, amount * f));
+    this.net.shake(amount, x, z);
   }
 
   livingCharacters() { return this.characters.filter((c) => c.alive); }
@@ -348,6 +511,18 @@ export class Game {
       if (d < bd) { bd = d; best = c; }
     }
     return best;
+  }
+
+  /** What the HUD shows (local simulation, or the host's snapshot when we're a client). */
+  hudData() {
+    if (this.mode === 'client') return this.net.hudData();
+    return {
+      writer: this.writer.statusText(),
+      hazards: this.hazards.list.map((h) => ({
+        uid: h.uid, icon: h.icon, label: h.label, owner: h.owner ? h.owner.name : '',
+        frac: Math.max(0, 1 - h.t / h.duration), recharging: !!h.recharging,
+      })),
+    };
   }
 
   // ---------------- Main loop ----------------
@@ -371,18 +546,28 @@ export class Game {
 
     this.resetEnv();
     const active = this.state === 'playing' || this.state === 'ending';
-    if (active) {
+    const host = this.mode === 'host';
+    if (this.mode === 'client') {
+      this.net.clientUpdate(dt);
+      if (active || this.state === 'ended') {
+        if (this.player.alive) this.controller.applyInput(this.player);
+        for (const c of this.characters) c.update(dt);
+        if (active) this.ui.updateHUD(dt);
+      }
+    } else if (active) {
       this.roundTime += dt;
       if (this.player.alive) this.controller.applyInput(this.player);
+      if (host) this.net.hostBeforeHazards();
       for (const c of this.characters) {
         if (!c.alive) continue;
         if (c.isBot) updateBot(c, dt, this);
         c.resetMods();
       }
       this.hazards.update(dt);
-      if (this.writer && this.state === 'playing') this.writer.update(dt);
+      if (this.state === 'playing') this.writer.update(dt);
       for (const c of this.characters) c.update(dt);
       this.separateCharacters();
+      if (host) this.net.hostAfterSim();
       this.ui.updateHUD(dt);
       if (this.state === 'ending') {
         this.endTimer -= dt;
@@ -392,6 +577,7 @@ export class Game {
       this.hazards.update(dt);
       for (const c of this.characters) c.update(dt);
     }
+    if (host) this.net.hostTick(dt);
 
     // camera
     if (active || this.state === 'ended') {

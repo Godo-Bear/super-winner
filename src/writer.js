@@ -6,7 +6,7 @@ export const TURN_INTERVAL = 15;
 export const LATE_INTERVAL = 12; // things speed up after a while
 export const WRITE_TIME = 10;
 
-const CATEGORY_COLORS = {
+export const CATEGORY_COLORS = {
   disaster: '#ff8a1f', weather: '#7fd4ff', monster: '#c084fc', weapon: '#ff3b4f',
   nature: '#ffb347', helpful: '#5dff9e', silly: '#ffd23f',
 };
@@ -30,13 +30,16 @@ export class WriterSystem {
     this.turns = 0;
     this.writer = null;
     this.playerWriting = false;
+    this.remoteWriting = false;
     this.lastSpawn = null;
     this.detachBubble();
   }
 
   cancel() {
     if (this.playerWriting) this.game.ui.closeWriter();
+    if (this.remoteWriting) this.game.net.sendDirect(this.writer.clientId, 'wclose', '');
     this.playerWriting = false;
+    this.remoteWriting = false;
     this.phase = 'idle';
     this.detachBubble();
   }
@@ -64,7 +67,15 @@ export class WriterSystem {
       this.writeT -= dt;
       if (!this.writer.alive) {
         // the writer died mid-sentence: their word still lands (chaos!)
-        this.submit(this.playerWriting ? (this.game.words.suggest('', 1)[0]?.fill ?? 'meteor') : this.botWord);
+        const human = this.playerWriting || this.remoteWriting;
+        this.submit(human ? randomBotWord() : this.botWord);
+        return;
+      }
+      if (this.remoteWriting) {
+        if (this.writeT <= 0) {
+          this.game.net.sendDirect(this.writer.clientId, 'wclose', '⏰ Too slow! A random word was picked');
+          this.submit(randomBotWord());
+        }
         return;
       }
       if (this.playerWriting) {
@@ -86,12 +97,13 @@ export class WriterSystem {
     const g = this.game;
     const living = g.livingCharacters();
     if (!living.length) return;
-    if (this.turns > 0 && g.player.alive) g.addCoins(5, 'Survived a hazard!');
+    const humans = living.filter((c) => c.isPlayer || c.remote);
+    if (this.turns > 0) for (const h of humans) g.giveCoins(h, 5, 'Survived a hazard!');
     this.turns++;
-    // the player gets a fair (slightly boosted) shot at writing
+    // humans get a fair (slightly boosted) shot at writing
     let w;
-    if (g.player.alive && Math.random() < Math.max(1 / living.length, 0.18)) w = g.player;
-    else w = pick(living.filter((c) => c !== g.player)) || g.player;
+    if (humans.length && Math.random() < Math.min(0.75, humans.length * Math.max(1 / living.length, 0.18))) w = pick(humans);
+    else w = pick(living.filter((c) => c.isBot)) || pick(living);
     this.writer = w;
     this.phase = 'writing';
     this.elapsed = 0;
@@ -101,6 +113,12 @@ export class WriterSystem {
       this.writeT = WRITE_TIME;
       g.ui.openWriter((word) => this.playerSubmit(word));
       g.ui.announce('✍️ You are the', 'WRITER!', 'Type a word. It will come to life!', '#7dffb0');
+    } else if (w.remote) {
+      this.playerWriting = false;
+      this.remoteWriting = true;
+      this.writeT = WRITE_TIME;
+      g.net.sendDirect(w.clientId, 'wopen');
+      w.mesh.add(this.bubble);
     } else {
       this.playerWriting = false;
       this.writeT = rand(1.8, 4);
@@ -124,22 +142,28 @@ export class WriterSystem {
     this.submit(w);
   }
 
+  /** An online friend sent their word. */
+  remoteSubmit(ch, word) {
+    if (this.phase !== 'writing' || !this.remoteWriting || this.writer !== ch) return;
+    const w = word.trim();
+    if (w.replace(/\s/g, '').length < 2) return this.game.net.sendDirect(ch.clientId, 'werr', 'Type at least 2 letters!');
+    if (!isWordAllowed(w)) return this.game.net.sendDirect(ch.clientId, 'werr', "🚫 That word isn't allowed. Try another!");
+    this.game.net.sendDirect(ch.clientId, 'wclose', '');
+    this.submit(w);
+  }
+
   submit(word) {
     if (this.phase !== 'writing') return;
     const g = this.game;
     if (this.playerWriting) g.ui.closeWriter();
     this.playerWriting = false;
+    this.remoteWriting = false;
     this.detachBubble();
     this.phase = 'waiting';
     this.timer = Math.max(3, this.interval - this.elapsed);
     const h = g.hazards.spawn(word, this.writer);
     if (!h) return;
     this.lastSpawn = h;
-    g.discover(h.entry, h.entry ? null : h.word);
-    const who = this.writer.isPlayer ? 'You wrote' : `${this.writer.name} wrote`;
-    const color = h.entry ? CATEGORY_COLORS[h.entry.category] : '#c4a7ff';
-    g.ui.announce(who, `${h.icon} ${h.label.toUpperCase()}`, h.hint, color);
-    g.audio.announce();
-    g.addShake(0.25);
+    g.announceWord(this.writer, h);
   }
 }

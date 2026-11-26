@@ -60,6 +60,7 @@ export class Island {
     this.trees = [];
     this.highPoint = { x: HILL.x, z: HILL.z };
     this.build();
+    this.staticColliders = this.colliders.length; // walls/bunkers/etc. from hazards come after these
   }
 
   build() {
@@ -267,6 +268,15 @@ export class Island {
   // ---------------- Queries ----------------
 
   addCollider(c) { this.colliders.push(c); return c; }
+
+  /** Colliders added by hazards (sent to online clients). */
+  dynamicColliders() { return this.colliders.slice(this.staticColliders); }
+
+  /** Online clients: replace hazard colliders with the host's list. */
+  setDynamicColliders(list) {
+    this.colliders.length = this.staticColliders;
+    if (list) for (const c of list) this.colliders.push(c);
+  }
   removeCollider(c) {
     const i = this.colliders.indexOf(c);
     if (i >= 0) this.colliders.splice(i, 1);

@@ -34,7 +34,7 @@ export class Hazard {
     this.duration = 20;
     this.done = false;
     this.group = new THREE.Group();
-    game.scene.add(this.group);
+    (game.hazardRoot || game.scene).add(this.group);
     this.threats = [];
     this.colliders = [];
     this.shelters = [];
@@ -77,7 +77,7 @@ export class Hazard {
 
   dispose() {
     this.onDispose();
-    this.game.scene.remove(this.group);
+    this.group.parent?.remove(this.group);
     for (const c of this.colliders) this.island.removeCollider(c);
     for (const s of this.shelters) this.island.removeShelter(s);
     this.group.traverse((o) => { if (o.userData && o.userData.dispose) o.userData.dispose(); });

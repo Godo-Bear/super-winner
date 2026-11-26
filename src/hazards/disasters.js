@@ -280,7 +280,7 @@ export class Nuke extends Hazard {
       const sec = Math.ceil(remaining);
       if (sec !== this.lastSec) {
         this.lastSec = sec;
-        this.game.ui.countdown(`☢️ ${sec}`, this.game.player.alive && this.island.isSheltered(this.game.player.pos) ? 'You are safe in here... probably' : 'GET IN THE HUT!');
+        this.game.ui.countdown(`☢️ ${sec}`, 'GET IN THE HUT (or a bunker)!');
       }
       if (remaining < 3) {
         this.bomb.visible = true;
