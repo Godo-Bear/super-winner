@@ -85,6 +85,7 @@ export class HazardManager {
       n.uid = prev.uid;
       n.generation = prev.generation + 1;
       this.list[i] = n;
+      this.game.ui.killFeed(`🔁 ${n.icon} <b>${n.label.toUpperCase()}</b> strikes again!`);
     } else if (h.recurring && playing) {
       const d = RECUR_DELAY[0] + Math.random() * (RECUR_DELAY[1] - RECUR_DELAY[0]);
       this.list[i] = new Recharging(h, d);

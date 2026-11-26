@@ -162,6 +162,12 @@ html, body {
   #killfeed { bottom: auto; top: 120px; max-width: 60vw; }
   .kf { font-size: 12px; }
   #writer { bottom: auto; top: 8px; }
+  .writer-card { padding: 8px 10px; }
+  .writer-title { font-size: 16px; }
+  #writer-input { font-size: 18px; }
+  #writer-form .btn-play { font-size: 18px; padding: 6px 14px; }
+  .sug { font-size: 12px; padding: 2px 7px; }
+  #writer-suggest { gap: 4px; margin-top: 6px; }
 }
 .sug.blocked { background: #ffd0d5; border-color: var(--red); cursor: default; }
 .hz-chip.recharging { opacity: .55; }

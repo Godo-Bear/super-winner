@@ -81,6 +81,7 @@ export class Game {
     }
 
     addEventListener('resize', () => this.resize());
+    this.resize();
     this.clock = new THREE.Clock();
     this.fpsFrames = 0; this.fpsTime = 0; this.fps = 60;
     renderer.setAnimationLoop(() => this.tick());
@@ -119,8 +120,26 @@ export class Game {
     this.sun = sun;
   }
 
+  /** Drops render resolution (then shadows) if the frame rate sags, to hold ~60fps. */
+  adaptQuality() {
+    if (document.hidden) return;
+    const r = this.renderer;
+    this.slowSeconds = this.fps < 50 ? (this.slowSeconds || 0) + 1 : 0;
+    if (this.slowSeconds >= 3) {
+      this.slowSeconds = 0;
+      const pr = r.getPixelRatio();
+      if (pr > 0.75) r.setPixelRatio(Math.max(0.75, pr - 0.25));
+      else if (this.sun.shadow.mapSize.x > 1024) {
+        this.sun.shadow.mapSize.set(1024, 1024);
+        this.sun.shadow.map?.dispose();
+        this.sun.shadow.map = null;
+      }
+    }
+  }
+
   resize() {
     this.camera.aspect = innerWidth / innerHeight;
+    this.camera.fov = this.camera.aspect < 1 ? 78 : 62;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(innerWidth, innerHeight);
   }
@@ -336,7 +355,11 @@ export class Game {
     const rawDt = this.clock.getDelta();
     const dt = Math.min(rawDt, 0.05);
     this.fpsFrames++; this.fpsTime += rawDt;
-    if (this.fpsTime > 1) { this.fps = this.fpsFrames / this.fpsTime; this.fpsFrames = 0; this.fpsTime = 0; }
+    if (this.fpsTime > 1) {
+      this.fps = this.fpsFrames / this.fpsTime;
+      this.fpsFrames = 0; this.fpsTime = 0;
+      this.adaptQuality();
+    }
     this.step(dt);
     this.renderer.render(this.scene, this.camera);
   }

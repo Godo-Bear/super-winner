@@ -243,6 +243,7 @@ export class Volcano extends Hazard {
 
 // ------------------------------------------------------------------ NUKE
 const bombMat = flatMat(0x3d4a3d);
+const NUKE_SKY = new THREE.Color(1, 0.75, 0.55);
 export class Nuke extends Hazard {
   constructor(game, opts) {
     super(game, opts);
@@ -294,7 +295,7 @@ export class Nuke extends Hazard {
       this.cloud.scale.setScalar(0.3 + k * 1.4);
       this.cloud.position.y = k * 6;
       this.cloudMat.opacity = Math.max(0, 0.95 - k * 0.95);
-      this.game.env.skyTint = new THREE.Color(1, 0.75, 0.55);
+      this.game.env.skyTint = NUKE_SKY;
     }
   }
 
