@@ -163,3 +163,4 @@ html, body {
   .kf { font-size: 12px; }
   #writer { bottom: auto; top: 8px; }
 }
+.sug.blocked { background: #ffd0d5; border-color: var(--red); cursor: default; }

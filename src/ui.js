@@ -1,3 +1,4 @@
+import { isWordAllowed } from './filter.js';
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -228,7 +229,8 @@ export class UI {
   renderSuggestions() {
     const v = $('writer-input').value.trim();
     let html = this.sugs.map((s, i) => `<span class="sug ${i === this.sugIndex ? 'active' : ''}" data-fill="${esc(s.fill)}">${s.icon} ${esc(s.fill)}</span>`).join('');
-    if (v && !this.game.words.resolveWord(v)) html += `<span class="sug mystery">🫧 "${esc(v)}" = Mystery Blob!</span>`;
+    if (v && !isWordAllowed(v)) html += '<span class="sug blocked">🚫 Not allowed</span>';
+    else if (v && !this.game.words.resolveWord(v)) html += `<span class="sug mystery">🫧 "${esc(v)}" = Mystery Blob!</span>`;
     $('writer-suggest').innerHTML = html;
   }
 
@@ -242,6 +244,14 @@ export class UI {
     this.game.controller.releasePointer();
     this.game.controller.keys.clear();
     setTimeout(() => input.focus(), 30);
+  }
+
+  writerError(msg) {
+    const box = document.getElementById('writer-suggest');
+    box.innerHTML = `<span class="sug blocked">${esc(msg)}</span>`;
+    const input = document.getElementById('writer-input');
+    input.value = '';
+    input.focus();
   }
 
   setWriterTime(t, frac) {
