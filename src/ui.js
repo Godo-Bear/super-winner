@@ -107,11 +107,11 @@ export class UI {
 
     const hz = g.hazards.list;
     $('hazard-count').textContent = `${hz.length}/${g.hazards.max}`;
-    const key = hz.map((h) => h.uid).join(',');
+    const key = hz.map((h) => `${h.uid}${h.recharging ? 'r' : ''}`).join(',');
     if (key !== this.lastHazardKey) {
       this.lastHazardKey = key;
       $('hazard-list').innerHTML = hz.slice().reverse().map((h) =>
-        `<div class="hz-chip" data-uid="${h.uid}">${h.icon} ${esc(h.label)}<span class="by">${esc(h.owner ? h.owner.name : '')}</span><div class="bar"></div></div>`).join('');
+        `<div class="hz-chip ${h.recharging ? 'recharging' : ''}" data-uid="${h.uid}">${h.icon} ${esc(h.label)}<span class="by">${esc(h.owner ? h.owner.name : '')}</span><div class="bar"></div></div>`).join('');
     }
     for (const h of hz) {
       const el = document.querySelector(`.hz-chip[data-uid="${h.uid}"] .bar`);

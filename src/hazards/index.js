@@ -9,6 +9,30 @@ export const REGISTRY = {};
 export function registerHazards(map) { Object.assign(REGISTRY, map); }
 
 export const MAX_HAZARDS = 12;
+export const RECUR_DELAY = [6, 11];
+
+/**
+ * Stand-in for a finished hazard that is "recharging" before it strikes again.
+ * Hazards stack: a word stays active (repeating) until the cap pushes it out.
+ */
+class Recharging {
+  constructor(prev, delay) {
+    this.prev = prev;
+    this.uid = prev.uid;
+    this.label = prev.label;
+    this.icon = '⏳';
+    this.owner = prev.owner;
+    this.entry = prev.entry;
+    this.word = prev.word;
+    this.t = 0;
+    this.duration = delay;
+    this.done = false;
+    this.threats = [];
+    this.recharging = true;
+  }
+  tick(dt) { this.t += dt; if (this.t >= this.duration) this.done = true; }
+  dispose() {}
+}
 
 export class HazardManager {
   constructor(game) {
@@ -43,9 +67,28 @@ export class HazardManager {
     this.threats.length = 0;
     for (const h of this.list.slice()) {
       h.tick(dt);
-      if (h.done) this.remove(h);
+      if (h.done) this.finish(h);
       else for (const t of h.threats) this.threats.push(t);
     }
+  }
+
+  /** A hazard finished: recurring ones recharge and then strike again. */
+  finish(h) {
+    const i = this.list.indexOf(h);
+    if (i < 0) return;
+    h.dispose();
+    const playing = this.game.state === 'playing';
+    if (h.recharging) {
+      if (!playing) { this.list.splice(i, 1); return; }
+      const prev = h.prev;
+      const n = new prev.constructor(this.game, prev.opts);
+      n.uid = prev.uid;
+      n.generation = prev.generation + 1;
+      this.list[i] = n;
+    } else if (h.recurring && playing) {
+      const d = RECUR_DELAY[0] + Math.random() * (RECUR_DELAY[1] - RECUR_DELAY[0]);
+      this.list[i] = new Recharging(h, d);
+    } else this.list.splice(i, 1);
   }
 
   clear() {

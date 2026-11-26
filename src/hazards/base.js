@@ -23,6 +23,9 @@ export class Hazard {
     this.word = word;
     this.entry = entry;
     this.owner = owner;
+    this.opts = { word, entry, owner };
+    this.recurring = true; // comes back after a pause when finished (set false for one-time things)
+    this.generation = 1;
     this.label = entry ? entry.name : word.replace(/\b\w/g, (c) => c.toUpperCase());
     this.icon = entry ? entry.icon : '🫧';
     this.hint = entry ? entry.hint : 'A Mystery Blob appears!';

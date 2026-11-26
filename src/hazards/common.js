@@ -165,3 +165,94 @@ export function charsNear(game, x, z, r, yMin = -Infinity, yMax = Infinity) {
   }
   return out;
 }
+
+/** Pushes a ground monster (x/z object with radius r) out of solid colliders. Returns true if it bumped. */
+export function collideObject(island, obj, r, y = 0.5) {
+  let bumped = false;
+  for (const c of island.colliders) {
+    if (y > c.top - 0.3 || y + 1.5 < c.bottom) continue;
+    if (c.type === 'circle') {
+      const dx = obj.x - c.x, dz = obj.z - c.z, d = Math.hypot(dx, dz), min = c.r + r;
+      if (d < min) {
+        const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
+        obj.x = c.x + nx * min; obj.z = c.z + nz * min; bumped = true;
+      }
+    } else {
+      const qx = clamp(obj.x, c.minX, c.maxX), qz = clamp(obj.z, c.minZ, c.maxZ);
+      const dx = obj.x - qx, dz = obj.z - qz, d = Math.hypot(dx, dz);
+      if (d < r) {
+        if (d > 1e-5) { obj.x = qx + (dx / d) * r; obj.z = qz + (dz / d) * r; }
+        else {
+          const pen = [obj.x - c.minX, c.maxX - obj.x, obj.z - c.minZ, c.maxZ - obj.z];
+          const m = Math.min(...pen);
+          if (m === pen[0]) obj.x = c.minX - r; else if (m === pen[1]) obj.x = c.maxX + r;
+          else if (m === pen[2]) obj.z = c.minZ - r; else obj.z = c.maxZ + r;
+        }
+        bumped = true;
+      }
+    }
+  }
+  return bumped;
+}
+
+/** Shared dark storm-cloud ceiling used by weather hazards. */
+const cloudGeo = new THREE.BoxGeometry(1, 1, 1);
+export function stormClouds(parent, color = 0x4a5160, count = 18) {
+  const mat = new THREE.MeshLambertMaterial({ color, flatShading: true, transparent: true, opacity: 0 });
+  const g = new THREE.Group();
+  for (let i = 0; i < count; i++) {
+    const m = new THREE.Mesh(cloudGeo, mat);
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 32;
+    m.position.set(Math.cos(a) * r, 24 + Math.random() * 5, Math.sin(a) * r);
+    m.scale.set(8 + Math.random() * 10, 2 + Math.random() * 2, 6 + Math.random() * 8);
+    g.add(m);
+  }
+  parent.add(g);
+  g.userData.mat = mat;
+  g.userData.dispose = () => mat.dispose();
+  return g;
+}
+
+/**
+ * Falling precipitation (rain / snow / acid) drawn as Points around the camera.
+ */
+export class Precipitation {
+  constructor(hazard, { count = 1500, color = 0x9fc8ff, speed = 30, size = 0.18, drift = 0 }) {
+    this.h = hazard;
+    this.count = count;
+    this.speed = speed;
+    this.drift = drift;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 70;
+      pos[i * 3 + 1] = Math.random() * 40;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 70;
+    }
+    this.geo = new THREE.BufferGeometry();
+    this.geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.mat = new THREE.PointsMaterial({ color, size, transparent: true, opacity: 0.8, depthWrite: false });
+    this.points = new THREE.Points(this.geo, this.mat);
+    this.points.frustumCulled = false;
+    hazard.group.add(this.points);
+    hazard.track(this.geo);
+    hazard.track(this.mat);
+  }
+
+  update(dt, intensity = 1) {
+    const cam = this.h.game.controller.camTarget;
+    const p = this.geo.attributes.position.array;
+    const n = Math.floor(this.count * intensity);
+    this.geo.setDrawRange(0, n);
+    for (let i = 0; i < n; i++) {
+      const k = i * 3;
+      p[k + 1] -= this.speed * dt;
+      p[k] += this.drift * dt;
+      if (p[k + 1] < cam.y - 12 || Math.abs(p[k] - cam.x) > 36 || Math.abs(p[k + 2] - cam.z) > 36) {
+        p[k] = cam.x + (Math.random() - 0.5) * 70;
+        p[k + 1] = cam.y + 14 + Math.random() * 26;
+        p[k + 2] = cam.z + (Math.random() - 0.5) * 70;
+      }
+    }
+    this.geo.attributes.position.needsUpdate = true;
+  }
+}

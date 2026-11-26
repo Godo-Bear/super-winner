@@ -9,6 +9,12 @@ import { HazardManager, registerHazards } from './hazards/index.js';
 import { installWarnPulse } from './hazards/common.js';
 import mysteryHazards from './hazards/mystery.js';
 import disasterHazards from './hazards/disasters.js';
+import weatherHazards from './hazards/weather.js';
+import monsterHazards from './hazards/monsters.js';
+import weaponHazards from './hazards/weapons.js';
+import natureHazards from './hazards/nature.js';
+import helpfulHazards from './hazards/helpful.js';
+import sillyHazards from './hazards/silly.js';
 import { WriterSystem } from './writer.js';
 import { UI, esc } from './ui.js';
 import { loadSave, writeSave } from './save.js';
@@ -53,7 +59,7 @@ export class Game {
     this.particles = new Particles(scene);
     this.audio = new Audio();
     this.hazards = new HazardManager(this);
-    registerHazards({ ...mysteryHazards, ...disasterHazards });
+    registerHazards({ ...mysteryHazards, ...disasterHazards, ...weatherHazards, ...monsterHazards, ...weaponHazards, ...natureHazards, ...helpfulHazards, ...sillyHazards });
     installWarnPulse(this);
     this.writer = new WriterSystem(this);
     this.controller = new PlayerController(this);
@@ -329,9 +335,15 @@ export class Game {
   tick() {
     const rawDt = this.clock.getDelta();
     const dt = Math.min(rawDt, 0.05);
-    this.time += dt;
     this.fpsFrames++; this.fpsTime += rawDt;
     if (this.fpsTime > 1) { this.fps = this.fpsFrames / this.fpsTime; this.fpsFrames = 0; this.fpsTime = 0; }
+    this.step(dt);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Advances the whole simulation by dt seconds (no rendering). */
+  step(dt) {
+    this.time += dt;
     for (const f of this.onTick) f(dt, this.time);
 
     this.resetEnv();
@@ -377,7 +389,6 @@ export class Game {
     this.applyEnv(dt);
     this.island.update(dt, this.time);
     this.particles.update(dt);
-    this.renderer.render(this.scene, this.camera);
   }
 
   applyEnv(dt) {
