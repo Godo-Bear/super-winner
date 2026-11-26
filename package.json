@@ -1,0 +1,18 @@
+{
+  "name": "super-winner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Super Winner: Word Storm Island - a 3D browser word-survival party game",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  }
+}

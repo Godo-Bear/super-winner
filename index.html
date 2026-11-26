@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Super Winner: Word Storm Island</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- Screen effects -->
+  <div id="flash"></div>
+  <div id="vignette"></div>
+
+  <!-- Lobby -->
+  <div id="lobby" class="screen">
+    <div class="lobby-card">
+      <h1 class="title"><span>SUPER</span> <span>WINNER</span></h1>
+      <div class="subtitle">⚡ Word Storm Island ⚡</div>
+      <p class="tagline">Every 15 seconds someone writes a word. That word comes to life. Survive the chaos!</p>
+      <div class="coins-big">🪙 <span id="lobby-coins">0</span></div>
+      <div class="lobby-stats" id="lobby-stats"></div>
+      <div class="lobby-buttons">
+        <button id="btn-play" class="btn btn-play">▶ PLAY</button>
+        <button id="btn-index" class="btn">📖 Word Index</button>
+        <button id="btn-help" class="btn">❓ How to play</button>
+        <button id="btn-mute" class="btn btn-small">🔊</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Word index -->
+  <div id="index" class="screen modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>📖 Word Index <small id="index-count"></small></h2>
+        <button class="btn btn-small" data-close="index">✕</button>
+      </div>
+      <div id="index-body" class="index-body"></div>
+    </div>
+  </div>
+
+  <!-- Help -->
+  <div id="help" class="screen modal hidden">
+    <div class="modal-card help-card">
+      <div class="modal-head">
+        <h2>❓ How to play</h2>
+        <button class="btn btn-small" data-close="help">✕</button>
+      </div>
+      <ul>
+        <li><b>WASD</b> move · <b>Space</b> jump · <b>Shift</b> sprint · <b>Mouse</b> orbit camera (click to lock, Esc to release)</li>
+        <li>Every 15s a random survivor becomes the <b>Writer</b>. Their word becomes a hazard. Hazards stack!</li>
+        <li>Every hazard warns you first: <span class="red">red circles</span>, shadows, sirens and wind-ups. Something always lets you survive.</li>
+        <li>☢️ Nukes: hide in the <b>hut</b>. 🌊 Tsunamis: climb the <b>hill</b>. 🔴 Lasers: <b>jump</b>.</li>
+        <li>Unknown words create a <b>Mystery Blob</b>. The same word always makes the same creature.</li>
+        <li>Coins: +5 per hazard survived, +10 per kill from your word, +50 for winning.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-tl">
+      <div class="hp-wrap"><div id="hp-bar"><div id="hp-fill"></div><div id="shield-fill"></div></div><span id="hp-text">100</span></div>
+      <div class="hud-row"><span id="hud-coins">🪙 0</span><span id="hud-effects"></span></div>
+    </div>
+    <div class="hud-tc">
+      <div id="alive">👥 12 alive</div>
+      <div id="writer-status">✍️ ...</div>
+    </div>
+    <div class="hud-tr">
+      <div class="hazard-title">Active hazards <span id="hazard-count">0/12</span></div>
+      <div id="hazard-list"></div>
+    </div>
+    <div id="killfeed"></div>
+    <div id="announce"><div id="announce-by"></div><div id="announce-word"></div><div id="announce-hint"></div></div>
+    <div id="countdown"></div>
+    <div id="toasts"></div>
+    <div id="spectate" class="hidden">
+      <div>💀 You're out! Spectating <b id="spectate-name"></b></div>
+      <div class="spectate-btns">
+        <button class="btn btn-small" id="spec-prev">◀</button>
+        <button class="btn btn-small" id="spec-next">▶</button>
+        <button class="btn btn-small" id="spec-lobby">🏠 Lobby</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Writer box -->
+  <div id="writer" class="hidden">
+    <div class="writer-card">
+      <div class="writer-title">✍️ YOU ARE THE WRITER! <span id="writer-time">10</span></div>
+      <div class="writer-timer"><div id="writer-timer-fill"></div></div>
+      <form id="writer-form" autocomplete="off">
+        <input id="writer-input" maxlength="20" placeholder="type any word... (meteor, shark, banana?)" spellcheck="false" />
+        <button class="btn btn-play" type="submit">GO!</button>
+      </form>
+      <div id="writer-suggest"></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="screen modal hidden">
+    <div class="modal-card results-card">
+      <h2 id="results-title"></h2>
+      <div id="results-body"></div>
+      <button id="btn-results-lobby" class="btn btn-play">Back to lobby</button>
+    </div>
+  </div>
+
+  <!-- Mobile controls -->
+  <div id="touch" class="hidden">
+    <div id="joy-zone"><div id="joy-base"><div id="joy-knob"></div></div></div>
+    <button id="touch-jump">⤒</button>
+    <button id="touch-sprint">»</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
