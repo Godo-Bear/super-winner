@@ -1,16 +1,36 @@
 import * as THREE from 'three';
-import { block, boxGeo, flatMat, mulberry32, clamp, rand } from './utils.js';
+import { block, boxGeo, flatMat, mulberry32, clamp, rand, newToon } from './utils.js';
 
-export const ISLAND_RADIUS = 42;
+export const ISLAND_RADIUS = 55;
 /** Size relative to the original 30-unit island (hazard distances were tuned for that). */
 export const MAP_SCALE = ISLAND_RADIUS / 30;
 export const HILL = { x: 12, z: -8, r: 11, h: 6 };
 /** All hills: the big one (volcano) plus a smaller one on the far side. Hilltops are safe from tsunamis. */
-export const HILLS = [HILL, { x: -20, z: -17, r: 9, h: 5 }];
+export const HILLS = [HILL, { x: -24, z: -22, r: 10, h: 5 }, { x: 20, z: 28, r: 9, h: 4.5 }];
 export const HUT = { x: -9, z: 7, hx: 3.25, hz: 3.25, h: 3.4 };
+/** A second hut on the far side so there's always shelter within reach. */
+export const HUT2 = { x: 30, z: -28, hx: 3.25, hz: 3.25, h: 3.4 };
+export const HUTS = [HUT, HUT2];
+const nearHut = (x, z, d) => HUTS.some((h) => Math.hypot(x - h.x, z - h.z) < d);
 export const KILL_Y = -18;
 
 const PINE_GEO = new THREE.ConeGeometry(1.5, 2.1, 6);
+
+/**
+ * Map themes — the word brain can switch to these ("desert", "candy land", "new map"...).
+ * ground: [hue, saturation, lightness] of the grass; the rest are colours.
+ */
+export const THEMES = {
+  grass: { name: 'Grassland', icon: '🌳', ground: [0.27, 0.55, 0.42], leaf: [0x2f9e44, 0x37b24d, 0x40c057], pine: [0x1f7a3a, 0x24893f, 0x2b9a48], trunk: 0x7b5032, rock: [0x9a9aa6, 0x84848f], dirt: 0x8a5a35, cliff: 0x6d6a75, tuft: [0.26, 0.55, 0.42], sky: 0xffffff, fog: 0xbfe6ff, sea: 0x2a8bd8, vine: 0x3d8b37 },
+  desert: { name: 'Desert', icon: '🏜️', ground: [0.11, 0.55, 0.64], leaf: [0x6b8e23, 0x7a9a2e, 0x8aa63a], pine: [0x2f7d3a, 0x3a8f45, 0x47a052], trunk: 0x9c7a48, rock: [0xc79a6b, 0xb5835a], dirt: 0xc49a6c, cliff: 0xa0724a, tuft: [0.12, 0.45, 0.55], sky: 0xffe6b8, fog: 0xf5deb3, sea: 0x2a8bd8, vine: 0x8a7a3a },
+  snow: { name: 'Snow Land', icon: '❄️', ground: [0.58, 0.3, 0.9], leaf: [0xf2f8ff, 0xe1efff, 0xffffff], pine: [0x2e6b4f, 0x3a7d5c, 0x4a8f6a], trunk: 0x5d4037, rock: [0xb8c4d0, 0xa5b2c0], dirt: 0xe8f0f8, cliff: 0x8fa3b8, tuft: [0.56, 0.25, 0.85], sky: 0xe3f0ff, fog: 0xeaf4ff, sea: 0x5a9bd4, vine: 0xdfefff },
+  jungle: { name: 'Jungle', icon: '🌴', ground: [0.31, 0.65, 0.3], leaf: [0x1b5e20, 0x2e7d32, 0x43a047], pine: [0x1b4d2e, 0x23603a, 0x2e7546], trunk: 0x5d4037, rock: [0x6b7f5a, 0x5a6d4b], dirt: 0x5d4037, cliff: 0x4e5d43, tuft: [0.3, 0.7, 0.3], sky: 0xd8ffd8, fog: 0xa8d8a8, sea: 0x1f8a70, vine: 0x2e7d32 },
+  candy: { name: 'Candy Land', icon: '🍭', ground: [0.92, 0.6, 0.8], leaf: [0xff8fd8, 0xc77dff, 0x7fd4ff], pine: [0xff70a6, 0xffd23f, 0x8ac926], trunk: 0xff5f7e, rock: [0xb5e7ff, 0xffe0f0], dirt: 0xffffff, cliff: 0xffb3d9, tuft: [0.85, 0.6, 0.75], sky: 0xffd6f0, fog: 0xffe0f5, sea: 0xff9ad5, vine: 0xff70a6 },
+  autumn: { name: 'Autumn', icon: '🍂', ground: [0.16, 0.45, 0.45], leaf: [0xe76f51, 0xf4a261, 0xe9c46a], pine: [0x2a6041, 0x33704c, 0x3d8057], trunk: 0x6d4c41, rock: [0x8d8d99, 0x7a7a86], dirt: 0x7a4f2a, cliff: 0x5d5a66, tuft: [0.1, 0.5, 0.45], sky: 0xffe8c8, fog: 0xf0d9b5, sea: 0x2a7ab8, vine: 0xb5651d },
+  mars: { name: 'Mars', icon: '🔴', ground: [0.03, 0.6, 0.42], leaf: [0x9b2226, 0xae2012, 0xbb3e03], pine: [0x6a040f, 0x7f0b16, 0x941b0c], trunk: 0x3d0c02, rock: [0x7f4f24, 0x6b3e1c], dirt: 0x8c3b1c, cliff: 0x5e2a14, tuft: [0.04, 0.6, 0.35], sky: 0xffb38a, fog: 0xd9825b, sea: 0x7a2e10, vine: 0x6a040f },
+  tropical: { name: 'Tropical', icon: '🏝️', ground: [0.33, 0.7, 0.46], leaf: [0x38b000, 0x70e000, 0x9ef01a], pine: [0x2d8a00, 0x38b000, 0x52c41a], trunk: 0xc8a165, rock: [0xd8c3a5, 0xc4ae8f], dirt: 0xe9d5a1, cliff: 0xb39b72, tuft: [0.3, 0.7, 0.45], sky: 0xd9f7ff, fog: 0xbff0ff, sea: 0x00b4d8, vine: 0x38b000 },
+};
+export const DEFAULT_MAP = { theme: 'grass', seed: 1337 };
 
 const STEP = 0.4; // how far below a ledge top your feet may be and still climb onto it
 
@@ -67,22 +87,90 @@ export class Island {
     this.trees = [];
     this.highPoint = { x: HILL.x, z: HILL.z };
     this.highPoints = HILLS.map((h) => ({ x: h.x, z: h.z }));
+    // materials the map theme recolours
+    const t = THEMES.grass;
+    this.mats = {
+      leaf: t.leaf.map((c) => newToon(c)), pine: t.pine.map((c) => newToon(c)), trunk: newToon(t.trunk),
+      rock: t.rock.map((c) => newToon(c)), dirt: newToon(t.dirt), cliff: newToon(t.cliff), vine: newToon(t.vine),
+    };
     this.build();
     this.staticColliders = this.colliders.length; // walls/bunkers/etc. from hazards come after these
+    this.setTheme('grass');
   }
 
   build() {
-    const rng = mulberry32(1337);
-    this.buildGround(rng);
-    this.buildHut();
+    this.buildGround(mulberry32(1337));
+    for (const h of HUTS) this.buildHut(h);
+    this.hutColliders = this.colliders.length;
+    this.props = new THREE.Group();
+    this.group.add(this.props);
+    this.buildProps(DEFAULT_MAP.seed);
+    this.buildSurroundings(mulberry32(4242));
+  }
+
+  /** Trees, rocks, grass, flowers, pond and waterfall: everything "new map" reshuffles. */
+  buildProps(seed) {
+    const rng = mulberry32(seed);
+    this.seed = seed;
     this.buildTrees(rng);
     this.buildRocks(rng);
-    this.buildSurroundings(rng);
     this.buildDecor(rng);
   }
 
+  /** Switch theme and (if the seed changed) reshuffle the layout. Same inputs → same map on every computer. */
+  applyMap(theme, seed) {
+    if (seed !== this.seed) {
+      const dyn = this.dynamicColliders();
+      for (const o of [...this.props.children]) {
+        this.props.remove(o);
+        if (o.geometry && (o.geometry.type === 'DodecahedronGeometry' || o.geometry.type === 'CylinderGeometry')) o.geometry.dispose();
+      }
+      this.trees = [];
+      this.colliders.length = this.hutColliders;
+      this.buildProps(seed);
+      this.staticColliders = this.colliders.length;
+      for (const c of dyn) this.colliders.push(c);
+    }
+    this.setTheme(theme);
+  }
+
+  setTheme(id) {
+    const t = THEMES[id] || THEMES.grass;
+    this.themeId = THEMES[id] ? id : 'grass';
+    this.theme = t;
+    this.skyColor = new THREE.Color(t.sky);
+    this.fogColor = new THREE.Color(t.fog);
+    t.leaf.forEach((c, i) => this.mats.leaf[i].color.setHex(c));
+    t.pine.forEach((c, i) => this.mats.pine[i].color.setHex(c));
+    t.rock.forEach((c, i) => this.mats.rock[i].color.setHex(c));
+    this.mats.trunk.color.setHex(t.trunk);
+    this.mats.dirt.color.setHex(t.dirt);
+    this.mats.cliff.color.setHex(t.cliff);
+    this.mats.vine.color.setHex(t.vine);
+    this.sea.material.color.setHex(t.sea);
+    // grass colours, keeping each vertex's little random variation
+    const col = this.ground.geometry.attributes.color, c = new THREE.Color();
+    const [gh, gs, gl] = t.ground;
+    for (let i = 0; i < col.count; i++) {
+      const { n, hill, rim } = this.groundInfo[i];
+      c.setHSL(gh + n * 0.04 - hill * 0.03, Math.min(1, gs + n * 0.1), Math.min(0.97, gl + n * 0.08 + hill * 0.06));
+      if (rim) c.offsetHSL(0, 0, -0.06);
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
+    col.needsUpdate = true;
+    if (this.tufts) {
+      const [th, ts, tl] = t.tuft;
+      for (let i = 0; i < this.tufts.count; i++) {
+        const r = this.tuftRand[i];
+        c.setHSL(th + r * 0.06, ts, Math.min(0.95, tl + r * 0.1));
+        this.tufts.setColorAt(i, c);
+      }
+      this.tufts.instanceColor.needsUpdate = true;
+    }
+  }
+
   buildGround(rng) {
-    const geo = new THREE.RingGeometry(0.01, ISLAND_RADIUS, 72, 24);
+    const geo = new THREE.RingGeometry(0.01, ISLAND_RADIUS, 88, 30);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;
     const colors = [];
@@ -95,9 +183,8 @@ export class Island {
       pos.setY(i, terrainHeight(sx, sz));
       const n = rng();
       const hill = Math.max(0, terrainHeight(sx, sz) / HILL.h);
-      c.setHSL(0.27 + n * 0.04 - hill * 0.03, 0.55 + n * 0.1, 0.42 + n * 0.08 + hill * 0.06);
-      if (r > ISLAND_RADIUS - 1.2) c.offsetHSL(0, 0, -0.06);
-      colors.push(c.r, c.g, c.b);
+      (this.groundInfo ||= []).push({ n, hill, rim: r > ISLAND_RADIUS - 1.2 });
+      colors.push(1, 1, 1);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geo.computeVertexNormals();
@@ -108,7 +195,7 @@ export class Island {
     this.ground = ground;
 
     // dirt band + rocky underside
-    const dirt = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_RADIUS, ISLAND_RADIUS - 1.2, 1.6, 48, 1, true), flatMat(0x8a5a35));
+    const dirt = new THREE.Mesh(new THREE.CylinderGeometry(ISLAND_RADIUS, ISLAND_RADIUS - 1.2, 1.6, 48, 1, true), this.mats.dirt);
     dirt.position.y = -0.75;
     this.group.add(dirt);
     const coneGeo = new THREE.CylinderGeometry(ISLAND_RADIUS - 1.2, 2.5, 18, 18, 5);
@@ -122,13 +209,13 @@ export class Island {
       }
     }
     coneGeo.computeVertexNormals();
-    const cone = new THREE.Mesh(coneGeo, flatMat(0x6d6a75));
+    const cone = new THREE.Mesh(coneGeo, this.mats.cliff);
     cone.position.y = -1.5 - 9;
     this.group.add(cone);
   }
 
-  buildHut() {
-    const s = { ...HUT, door: '+x', base: 0 };
+  buildHut(spec = HUT) {
+    const s = { ...spec, door: '+x', base: 0 };
     const top = s.h;
     const wallMat = flatMat(0xb07a46);
     for (const col of shelterWalls(s)) {
@@ -166,6 +253,7 @@ export class Island {
     this.group.add(block(0.7, 1.8, 0.7, 0x8d6e63, s.x - 1.2, top + 1.4, s.z - 1.1));
     this.group.add(block(0.9, 0.2, 0.9, 0x6d4c41, s.x - 1.2, top + 2.35, s.z - 1.1));
     this.chimney = { x: s.x - 1.2, y: top + 2.5, z: s.z - 1.1 };
+    (this.chimneys ||= []).push(this.chimney);
     // glowing lanterns by the door
     const glow = new THREE.MeshBasicMaterial({ color: 0xffe9a0 });
     for (const dz of [-1.45, 1.45]) {
@@ -195,7 +283,7 @@ export class Island {
     for (let i = 0; i < 36; i++) {
       const a = (i / 36) * Math.PI * 2;
       const px = Math.cos(a) * (R - 3), pz = Math.sin(a) * (R - 3);
-      let d = Math.hypot(px - HUT.x, pz - HUT.z) - 6;
+      let d = Math.min(...HUTS.map((h) => Math.hypot(px - h.x, pz - h.z))) - 6;
       for (const t of this.trees) d = Math.min(d, Math.hypot(px - t.x, pz - t.z) - 3);
       for (const c of this.colliders) if (c.type === 'circle') d = Math.min(d, Math.hypot(px - c.x, pz - c.z) - c.r - 2.5);
       if (d > bestD) { bestD = d; best = a; }
@@ -206,28 +294,28 @@ export class Island {
     const pondX = ca * (R - 3.2), pondZ = sa * (R - 3.2);
     const pond = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.1, 10), water);
     pond.position.set(pondX, terrainHeight(pondX, pondZ) + 0.06, pondZ);
-    this.group.add(pond);
+    this.props.add(pond);
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       const st = block(0.6, 0.3, 0.6, 0x9a9aa6, pondX + Math.cos(a) * 2.5, pond.position.y + 0.05, pondZ + Math.sin(a) * 2.5, false);
       st.rotation.y = a;
-      if (Math.abs(Math.cos(a - best)) < 0.9 || Math.cos(a - best) < 0) this.group.add(st);
+      if (Math.abs(Math.cos(a - best)) < 0.9 || Math.cos(a - best) < 0) this.props.add(st);
     }
     const stream = new THREE.Mesh(boxGeo(1.6, 0.1, 3.4), water);
     stream.position.set(ca * (R - 0.9), pond.position.y, sa * (R - 0.9));
     stream.rotation.y = Math.atan2(ca, sa);
-    this.group.add(stream);
+    this.props.add(stream);
     const fall = new THREE.Mesh(boxGeo(1.8, 30, 0.5), water);
     fall.position.set(ca * (R + 0.35), pond.position.y - 15, sa * (R + 0.35));
     fall.rotation.y = Math.atan2(ca, sa);
-    this.group.add(fall);
+    this.props.add(fall);
     this.fallStreaks = [];
     const foam = flatMat(0xe9f8ff);
     for (let i = 0; i < 14; i++) {
       const m = new THREE.Mesh(boxGeo(0.25, 1.6, 0.1), foam);
       m.userData.off = rng() * 30;
       m.userData.side = (rng() - 0.5) * 1.5;
-      this.group.add(m);
+      this.props.add(m);
       this.fallStreaks.push(m);
     }
     this.fall = { x: ca * (R + 0.62), z: sa * (R + 0.62), top: pond.position.y, rot: Math.atan2(ca, sa), tx: -sa, tz: ca };
@@ -235,13 +323,13 @@ export class Island {
 
     // grass tufts + flowers as two instanced meshes (2 draw calls for ~1300 objects)
     const tuftGeo = new THREE.ConeGeometry(0.13, 0.32, 4);
-    const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 2000);
+    const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 3200);
     const flowerGeo = new THREE.BoxGeometry(0.17, 0.17, 0.17);
-    const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 300);
+    const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 480);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
     const col = new THREE.Color();
     const blocked = (x, z) => {
-      if (Math.abs(x - HUT.x) < HUT.hx + 0.3 && Math.abs(z - HUT.z) < HUT.hz + 0.3) return true;
+      if (HUTS.some((h) => Math.abs(x - h.x) < h.hx + 0.3 && Math.abs(z - h.z) < h.hz + 0.3)) return true;
       if (Math.hypot(x - pondX, z - pondZ) < 2.8) return true;
       for (const c of this.colliders) if (c.type === 'circle' && Math.hypot(x - c.x, z - c.z) < c.r + 0.2) return true;
       return false;
@@ -265,20 +353,22 @@ export class Island {
       mesh.count = n;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      this.group.add(mesh);
+      this.props.add(mesh);
     };
-    place(tufts, 2000, 0.13, (c) => c.setHSL(0.26 + rng() * 0.06, 0.55, 0.42 + rng() * 0.1), () => 0.8 + rng() * 0.7);
+    this.tuftRand = [];
+    place(tufts, 3200, 0.13, (c) => { const r = rng(); this.tuftRand.push(r); return c.setHSL(0.26 + r * 0.06, 0.55, 0.42 + r * 0.1); }, () => 0.8 + rng() * 0.7);
+    this.tufts = tufts;
     const petals = [0xffffff, 0xffe066, 0xff8fa3, 0xc77dff, 0xff595e, 0x7fd4ff];
-    place(flowers, 300, 0.22, (c) => c.set(petals[Math.floor(rng() * petals.length)]), () => 0.8 + rng() * 0.5);
+    place(flowers, 480, 0.22, (c) => c.set(petals[Math.floor(rng() * petals.length)]), () => 0.8 + rng() * 0.5);
 
     // roots and vines dangling under the rim
-    for (let i = 0; i < 68; i++) {
-      const a = (i / 68) * Math.PI * 2 + rng() * 0.1;
+    for (let i = 0; i < 90; i++) {
+      const a = (i / 90) * Math.PI * 2 + rng() * 0.1;
       if (Math.abs(Math.atan2(Math.sin(a - best), Math.cos(a - best))) < 0.12) continue;
       const rr = R - 0.4 - rng() * 1.2;
       const len = 1 + rng() * 3.5;
       const vine = rng() < 0.4;
-      this.group.add(block(vine ? 0.14 : 0.22, len, vine ? 0.14 : 0.22, vine ? 0x3d8b37 : 0x6b4423, Math.cos(a) * rr, -1.3 - len / 2, Math.sin(a) * rr, false));
+      this.props.add(block(vine ? 0.14 : 0.22, len, vine ? 0.14 : 0.22, vine ? this.mats.vine : this.mats.trunk, Math.cos(a) * rr, -1.3 - len / 2, Math.sin(a) * rr, false));
     }
   }
 
@@ -305,10 +395,10 @@ export class Island {
 
   buildTrees(rng) {
     let tries = 0;
-    while (this.trees.length < 28 && tries++ < 900) {
+    while (this.trees.length < 46 && tries++ < 1500) {
       const a = rng() * Math.PI * 2, r = 7 + rng() * (ISLAND_RADIUS - 10);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (Math.hypot(x - HUT.x, z - HUT.z) < 6.5) continue;
+      if (nearHut(x, z, 6.5)) continue;
       if (HILLS.some((hl) => Math.hypot(x - hl.x, z - hl.z) < 3.5)) continue;
       if (this.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 5)) continue;
       const y = terrainHeight(x, z);
@@ -316,12 +406,11 @@ export class Island {
       g.position.set(x, y, z);
       const trunkH = 2.2 + rng() * 1.2;
       const pine = rng() < 0.4;
-      g.add(block(0.6, trunkH, 0.6, 0x7b5032, 0, trunkH / 2, 0));
+      g.add(block(0.6, trunkH, 0.6, this.mats.trunk, 0, trunkH / 2, 0));
       if (pine) {
-        const cols = [0x1f7a3a, 0x24893f, 0x2b9a48];
         let ly = trunkH * 0.6;
         for (let i = 0; i < 3; i++) {
-          const c = new THREE.Mesh(PINE_GEO, flatMat(cols[i]));
+          const c = new THREE.Mesh(PINE_GEO, this.mats.pine[i]);
           c.scale.setScalar(1.25 - i * 0.28);
           c.position.y = ly + 1;
           c.castShadow = c.receiveShadow = true;
@@ -329,11 +418,10 @@ export class Island {
           ly += 1.05;
         }
       } else {
-        const leafCols = [0x2f9e44, 0x37b24d, 0x40c057];
         let ly = trunkH;
         for (let i = 0; i < 3; i++) {
           const sz = 2.6 - i * 0.7;
-          g.add(block(sz, 0.9, sz, leafCols[i], 0, ly + 0.35, 0));
+          g.add(block(sz, 0.9, sz, this.mats.leaf[i], 0, ly + 0.35, 0));
           ly += 0.8;
         }
         // a few apples / blossoms for colour
@@ -344,7 +432,7 @@ export class Island {
         }
       }
       g.rotation.y = rng() * Math.PI;
-      this.group.add(g);
+      this.props.add(g);
       this.trees.push({ x, z, y, mesh: g });
       this.colliders.push({ type: 'circle', x, z, r: 0.45, bottom: y - 1, top: y + 40 });
     }
@@ -353,20 +441,20 @@ export class Island {
   buildRocks(rng) {
     let n = 0, tries = 0;
     const placed = [];
-    while (n < 18 && tries++ < 900) {
+    while (n < 30 && tries++ < 1500) {
       const a = rng() * Math.PI * 2, r = 5 + rng() * (ISLAND_RADIUS - 8);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (Math.hypot(x - HUT.x, z - HUT.z) < 6) continue;
+      if (nearHut(x, z, 6)) continue;
       if (this.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 3)) continue;
       if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < 4)) continue;
       const rad = 0.8 + rng() * 0.9;
       const y = terrainHeight(x, z);
-      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 0), flatMat(rng() > 0.5 ? 0x9a9aa6 : 0x84848f));
+      const m = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 0), this.mats.rock[rng() > 0.5 ? 0 : 1]);
       m.scale.set(1, 0.75, 1);
       m.position.set(x, y + rad * 0.35, z);
       m.rotation.set(rng(), rng() * 3, rng());
       m.castShadow = m.receiveShadow = true;
-      this.group.add(m);
+      this.props.add(m);
       placed.push({ x, z });
       this.colliders.push({ type: 'circle', x, z, r: rad * 0.85, bottom: y - 1, top: y + rad * 0.95 });
       n++;
@@ -571,7 +659,7 @@ export class Island {
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(rand(minR * minR, maxR * maxR));
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (avoidHut && Math.abs(x - HUT.x) < HUT.hx + 1.5 && Math.abs(z - HUT.z) < HUT.hz + 1.5) continue;
+      if (avoidHut && HUTS.some((h) => Math.abs(x - h.x) < h.hx + 1.5 && Math.abs(z - h.z) < h.hz + 1.5)) continue;
       if (avoidHill && HILLS.some((hl) => Math.hypot(x - hl.x, z - hl.z) < hl.r * 0.8)) continue;
       if (avoidHut && this.shelters.some((s) => Math.abs(x - s.x) < s.hx + 1 && Math.abs(z - s.z) < s.hz + 1)) continue;
       return { x, z };

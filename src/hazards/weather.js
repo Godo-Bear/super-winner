@@ -162,7 +162,7 @@ export class AcidRain extends Hazard {
     }
     this.rain.update(dt, k);
     for (const c of this.living()) {
-      if (this.island.isCovered(c.pos)) continue;
+      if (this.island.isCovered(c.pos) || c.items?.some((i) => i.id === 'umbrella')) continue;
       this.hit(c, 7 * dt);
       if (Math.random() < dt * 6) this.particles.emit({ x: c.pos.x, y: c.pos.y + 2.2, z: c.pos.z, color: [0x9dff4a, 0xeaff8a], count: 2, speed: 1.5, up: 2, size: 0.25, life: 0.5, gravity: -1 });
     }

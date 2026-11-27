@@ -51,6 +51,8 @@ export class PlayerController {
         return;
       }
       if (g.paused) return;
+      if (e.code === 'KeyE' && (g.state === 'playing' || g.state === 'ending')) { g.useItem(); return; }
+      if (e.code === 'KeyQ' && (g.state === 'playing' || g.state === 'ending')) { g.selectItem(); return; }
       if (/^Digit[1-4]$/.test(e.code) && g.player.alive && (g.state === 'playing' || g.state === 'ending')) g.player.startEmote(Number(e.code.slice(5)));
       if (e.code === 'KeyT' && g.modeCfg.sandbox && g.state === 'playing') { e.preventDefault(); g.writer.freeWrite(); return; }
       if (/^(Key[WASD]|Arrow)/.test(e.code)) this.setTouchMode(false);

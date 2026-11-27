@@ -147,6 +147,9 @@ function think(bot, game) {
   ai.dz = dz;
   ai.sprint = sprint || bot.hp < 40;
 
+  // items they asked for
+  if (bot.items && bot.items.length && Math.random() < 0.5) useBotItems(bot, game, av);
+
   // jetpack: rescue from falling off, or climb when told to get high
   const ground = terrainHeight(p.x, p.z);
   ai.jetHold = bot.jetpack > 0 && ((!bot.onGround && (ground === -Infinity || p.y < ground)) || mode === 'high' || (av > 0.5 && Math.random() < 0.3));
@@ -160,4 +163,21 @@ export function randomBotNames(n) {
   const out = [];
   for (let i = 0; i < n; i++) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0] ?? pick(BOT_NAMES));
   return out;
+}
+
+/** Bots use the items they asked for, in a simple-minded way. */
+function useBotItems(bot, game, danger) {
+  const near = game.nearestCharacter(bot.pos.x, bot.pos.z, (c) => c !== bot);
+  const d = near ? Math.hypot(near.pos.x - bot.pos.x, near.pos.z - bot.pos.z) : 99;
+  bot.items.forEach((slot, i) => {
+    const want =
+      (slot.id === 'medkit' && bot.hp < 50) ||
+      ((slot.id === 'sword' || slot.id === 'hammer') && d < 2.6 && Math.random() < 0.3) ||
+      (slot.id === 'snowball' && d < 14 && Math.random() < 0.08) ||
+      (slot.id === 'teleporter' && danger > 0.8 && Math.random() < 0.3) ||
+      (slot.id === 'trap' && Math.random() < 0.02);
+    if (!want) return;
+    if (near && (slot.id === 'sword' || slot.id === 'snowball')) bot.yaw = Math.atan2(near.pos.x - bot.pos.x, near.pos.z - bot.pos.z);
+    game.items.use(bot, i);
+  });
 }

@@ -39,6 +39,7 @@ laptops) and switch off again when you move with the keyboard.
 
 ## Rules
 
+* The island is big (radius 55) with **three hills** (safe from tsunamis) and **two huts** (safe from nukes).
 * Falling off the island, or reaching 0 HP, knocks you out. Knocked-out players spectate (◀ ▶ to switch).
 * Every hazard warns you first with red circles, shadows, sirens or wind-ups. Instant-kill hazards always have a way
   out: the **hut** (or a bunker) survives nukes, the **hill** survives tsunamis, and you can **jump** spinning lasers.
@@ -55,6 +56,12 @@ laptops) and switch off again when you move with the keyboard.
   each level-up pays out coins. See them under **📋 Quests** or in the pause menu.
 * **Emotes**: 1 👋 wave, 2 💃 dance, 3 💪 flex, 4 🌀 spin (or the 😀 button). Others see them online.
 * **Pause** with **P**, **Esc** or ⏸ (single player only; online games can't be paused).
+* **Ask for items**: write an item name and only *you* get it (up to 3 in the hotbar; **E** use, **Q** switch, USE on touch):
+  🗡️ sword · 🔨 hammer · ❄️ snowballs · 🩹 medkit · 🌀 teleporter · 🍌 trap · 👟 boots (double jump) ·
+  🦘 pogo (super jump) · ☂️ umbrella (float, blocks acid rain) · 🛹 skateboard (faster). Items live in `src/items.js`.
+* **Change the map with words**: "new map" reshuffles the whole island; "desert", "snow land", "jungle",
+  "candy land", "autumn"/"halloween", "mars", "tropical"/"beach" (or "<theme> map/world/island") re-theme it.
+  Themes live in `THEMES` in `src/island.js`. A new round starts on the normal map again.
 * **"god"** (or angel, invincible, superpower, miracle...) only helps the Writer: full health, a big shield and
   10 seconds of invincibility.
 * The HUD shows **your chance to be the next Writer** (the same odds the game actually uses).
@@ -167,6 +174,7 @@ src/
   progress.js        daily quests, XP and levels
   collectibles.js    coins and power-up stars on the island
   lexicon.js         the word brain (extra words, describing words, word parts)
+  items.js           items you can ask for (hotbar, effects, held models)
   net/
     connection.js    WebSocket connection to the relay
     online.js        rooms, host snapshots/corrections, client prediction and interpolation

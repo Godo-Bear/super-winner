@@ -5,6 +5,7 @@ import { NAMED_MATERIALS, Precipitation } from '../hazards/common.js';
 import { KILL_Y } from '../island.js';
 import { isWordAllowed } from '../filter.js';
 import { lookFromSave, cleanLook } from '../shop.js';
+import { ITEM_IDS } from '../items.js';
 import { angleLerp, clamp } from '../utils.js';
 
 /**
@@ -219,6 +220,8 @@ export class Online {
       }
       return;
     }
+    if (d.t === 'use' && c) { this.game.items.use(c, Number(d.i) || 0); return; }
+    if (d.t === 'held' && c) { c.held = Math.max(0, Math.min(2, Number(d.i) || 0)); return; }
     if (d.t === 'in' && c && Array.isArray(d.p) && Array.isArray(d.v)) {
       c.netIn = d;
     } else if (d.t === 'look') {
@@ -250,6 +253,7 @@ export class Online {
     return {
       t: 'start',
       mode: this.game.gameMode,
+      map: this.game.mapState || null,
       roster: g.characters.map((c) => ({
         id: c.id, name: c.name, colors: c.colors,
         cid: c.isPlayer ? this.conn.id : c.remote ? c.clientId : null,
@@ -342,6 +346,7 @@ export class Online {
         c.id, R2(c.pos.x), R2(c.pos.y), R2(c.pos.z), R2(c.yaw), Math.max(0, Math.ceil(c.hp)), c.alive ? 1 : 0,
         (c.onGround ? 1 : 0) | (c.tripped > 0 ? 2 : 0) | (c.jetpack > 0 && c.input.jumpHeld ? 4 : 0) | (c.shield > 0 ? 8 : 0) | (c.hurtFlash > 0 ? 16 : 0),
         R2(c.mods.sink), R2(c.vel.x), R2(c.vel.z), c.emoteId || 0,
+        c.items && c.items[c.held || 0] ? ITEM_IDS.indexOf(c.items[c.held || 0].id) : -1, c.swingT > 0 ? 1 : 0,
       ]),
       env: [R2(e.friction), R2(e.speedMul), R2(e.windX), R2(e.windZ), Math.round(e.fogFar), Math.round(e.fogNear), hex(e.fogColor), hex(e.skyTint), R2(e.light), hex(e.groundTint), R2(e.gravityMul)],
       hud: {
@@ -428,6 +433,9 @@ export class Online {
     this.env = null;
     this.hud = null;
     if (m.mode) g.gameMode = m.mode;
+    const map = m.map || { theme: 'grass', seed: 1337 };
+    g.island.applyMap(map.theme, map.seed);
+    g.mapState = map;
     g.applyRoster(m.roster, this.conn.id);
     g.clientRoundStarted();
   }
@@ -462,6 +470,8 @@ export class Online {
       c.vel.set(row[9], 0, row[10]);
       const em = row[11] || 0;
       if (em !== (c.emoteId || 0)) { c.emoteId = em; c.emoteT = 0; }
+      c.netHeld = row[12] >= 0 ? ITEM_IDS[row[12]] : null;
+      if (row[13] && !(c.swingT > 0)) c.swingT = 0.3;
       if (f & 4 && Math.random() < 0.5) g.particles.emit({ x: c.pos.x, y: c.pos.y + 0.8, z: c.pos.z, color: [0xffa31a, 0xffe066], count: 2, speed: 2, size: 0.25, life: 0.4, gravity: -2 });
     }
     this.snapTime = now;
@@ -514,6 +524,7 @@ export class Online {
       case 'kill': g.clientKill(e[1], e[2], e[3]); break;
       case 'word': g.clientWord(e[1]); break;
       case 'win': g.announceWinner(g.charById(e[1])); break;
+      case 'map': g.island.applyMap(e[1], e[2]); g.mapState = { theme: e[1], seed: e[2] }; g.ui.flash('#ffffff', 0.6, 700); break;
       default: break;
     }
   }
@@ -537,6 +548,11 @@ export class Online {
         if (e[1]) g.ui.toast(e[1]);
         break;
       case 'werr': g.ui.writerError(e[1]); break;
+      case 'items':
+        g.player.items = Array.isArray(e[1]) ? e[1] : [];
+        g.player.held = Math.min(e[2] || 0, Math.max(0, g.player.items.length - 1));
+        g.ui.renderHotbar();
+        break;
       default: break;
     }
   }

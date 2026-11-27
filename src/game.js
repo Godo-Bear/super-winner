@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Island, terrainHeight, ISLAND_RADIUS } from './island.js';
+import { Island, terrainHeight, ISLAND_RADIUS, THEMES, DEFAULT_MAP } from './island.js';
 import { Particles } from './particles.js';
 import { Audio } from './audio.js';
 import { Character } from './character.js';
@@ -26,6 +26,7 @@ import { lookFromSave } from './shop.js';
 import { MODES, modeOf } from './modes.js';
 import { ensureQuests, trackProgress, questInfo } from './progress.js';
 import { Collectibles } from './collectibles.js';
+import { ItemSystem } from './items.js';
 import * as words from './words.js';
 import { clamp, pick, rand } from './utils.js';
 
@@ -79,6 +80,7 @@ export class Game {
     this.ui = new UI(this);
     this.net = new Online(this);
     this.collectibles = new Collectibles(this);
+    this.items = new ItemSystem(this);
     this.gameMode = modeOf(this.save.mode) === MODES[this.save.mode] ? this.save.mode : 'classic';
     this.paused = false;
     ensureQuests(this.save);
@@ -156,7 +158,8 @@ export class Game {
     this.ambT = (this.ambT || 0) + dt;
     if (this.ambT < 0.12) return;
     this.ambT = 0;
-    const ch = this.island.chimney;
+    const chs = this.island.chimneys || [];
+    const ch = chs[Math.floor(Math.random() * chs.length)];
     if (ch && Math.random() < 0.6) this.particles.emit({ local: true, x: ch.x, y: ch.y, z: ch.z, color: [0xdddddd, 0xbbbbbb, 0xeeeeee], count: 1, speed: 0.6, up: 1.6, size: 0.55, life: 2.4, gravity: -0.4, drag: 0.3, shrink: true });
     const t = this.controller.camTarget;
     const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 14;
@@ -272,6 +275,42 @@ export class Game {
     this.ui.showPause(on);
   }
 
+  // ---------------- Map ----------------
+  /** "new map", "desert", "candy land"...: re-theme and/or reshuffle the island (everyone online too). */
+  changeMap(theme, seed) {
+    if (!THEMES[theme]) theme = 'grass';
+    this.island.applyMap(theme, seed);
+    this.mapState = { theme, seed };
+    this.net.event('map', theme, seed);
+    this.ui.flash('#ffffff', 0.6, 700);
+    this.addShake(0.4);
+    // anyone now stuck inside a new tree or rock gets nudged out by normal collisions; anyone in the air lands
+    for (const c of this.characters) if (c.alive) c.pos.y = Math.max(c.pos.y, terrainHeight(c.pos.x, c.pos.z) + 0.2);
+  }
+
+  // ---------------- Items ----------------
+  /** Local player pressed E / USE. Online friends ask the host to do it. */
+  useItem(index = this.player.held || 0) {
+    const p = this.player;
+    if (!p.alive || !p.items || !p.items[index] || this.paused) return;
+    if (this.mode === 'client') {
+      p.held = index;
+      p.swingT = 0.3;
+      this.net.conn?.send({ t: 'use', i: index });
+      return;
+    }
+    this.items.use(p, index);
+  }
+
+  /** Q / tapping the hotbar: choose which item is in your hand. */
+  selectItem(index) {
+    const p = this.player;
+    if (!p.items || !p.items.length) return;
+    p.held = index === undefined ? ((p.held || 0) + 1) % p.items.length : Math.min(index, p.items.length - 1);
+    if (this.mode === 'client') this.net.conn?.send({ t: 'held', i: p.held });
+    this.ui.renderHotbar();
+  }
+
   // ---------------- Quests & levels ----------------
   /** Count progress for the local player (ignored in Sandbox). */
   track(kind, n = 1) {
@@ -323,6 +362,11 @@ export class Game {
     this.spectateTarget = null;
     this.deathShown = false;
     this.collectibles.reset();
+    this.items.reset();
+    for (const c of this.characters) { c.items = []; c.held = 0; }
+    if (this.mapState && (this.mapState.theme !== DEFAULT_MAP.theme || this.mapState.seed !== DEFAULT_MAP.seed)) this.island.applyMap(DEFAULT_MAP.theme, DEFAULT_MAP.seed);
+    this.mapState = { ...DEFAULT_MAP };
+    this.ui.renderHotbar();
     this.save.games++;
     writeSave(this.save);
     for (const c of this.characters) if (c.isPlayer || c.remote) this.trackFor(c, 'play');
@@ -368,6 +412,7 @@ export class Game {
     this.particles.clear();
     this.writer.cancel();
     this.collectibles.reset();
+    this.items.reset();
     this.paused = false;
     this.ui.showPause(false);
     for (const c of this.characters) { c.alive = false; c.mesh.visible = false; }
@@ -708,6 +753,7 @@ export class Game {
       }
       this.hazards.update(dt);
       this.collectibles.update(dt);
+      this.items.update(dt);
       if (this.state === 'playing') this.writer.update(dt);
       for (const c of this.characters) c.update(dt);
       this.separateCharacters();
@@ -763,8 +809,8 @@ export class Game {
     const k = 1 - Math.exp(-2 * dt);
     c.fogFar += (e.fogFar - c.fogFar) * k;
     c.fogNear += (e.fogNear - c.fogNear) * k;
-    c.fogColor.lerp(e.fogColor || this.baseFog, k);
-    c.sky.lerp(e.skyTint || WHITE, k);
+    c.fogColor.lerp(e.fogColor || this.island.fogColor || this.baseFog, k);
+    c.sky.lerp(e.skyTint || this.island.skyColor || WHITE, k);
     c.ground.lerp(e.groundTint || WHITE, k);
     c.light += (e.light - c.light) * k;
     this.scene.fog.far = c.fogFar;

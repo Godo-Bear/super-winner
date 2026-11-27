@@ -1,5 +1,6 @@
 import { resolveWord, normalizeWord, DICTIONARY } from './words.js';
 import { hashString } from './utils.js';
+import { itemForWord, ITEMS } from './items.js';
 
 /**
  * THE WORD BRAIN
@@ -45,7 +46,9 @@ const T = {
   // effects (hazards/effects.js) — no extra settings needed
   wind: { hazard: 'wind' }, lowgravity: { hazard: 'lowgravity' }, darkness: { hazard: 'darkness' }, magnet: { hazard: 'magnet' },
   gas: { hazard: 'gas' }, disco: { hazard: 'disco' }, slowmo: { hazard: 'slowmo' }, ufo: { hazard: 'ufo' }, blessing: { hazard: 'blessing' },
-  // reuse a hand-made dictionary hazard
+  // the island itself ("new map", "desert"...)
+  newmap: { hazard: 'mapchange', theme: 'random', reshuffle: true },
+  maptheme: { hazard: 'mapchange' },
 };
 
 const brown = 0x8b5a2b, dark = 0x3d2b1f, gray = 0x8d8d99, white = 0xf2f2f2, black = 0x222222, green = 0x4caf50, pink = 0xffa6c9, orange = 0xf28c28;
@@ -182,7 +185,7 @@ const LEX = [
   [['book', 'books', 'dictionary', 'homework'], '📚', 'thing', { damage: 15 }],
   [['pencil', 'pencils', 'pen', 'crayon', 'crayons'], '✏️', 'thing', { damage: 15, size: 1.2 }],
   [['sock', 'socks'], '🧦', 'soft'],
-  [['shoe', 'shoes', 'boot', 'boots', 'sneaker'], '👟', 'thing', { damage: 15 }],
+  [['shoe', 'shoes', 'sneaker'], '👟', 'thing', { damage: 15 }],
   [['lamp', 'lightbulb', 'bulb'], '💡', 'thing'],
   [['clock', 'clocks', 'alarm'], '⏰', 'thing'],
   [['bell', 'bells'], '🔔', 'thing'],
@@ -192,9 +195,7 @@ const LEX = [
   [['bowling', 'bowling ball'], '🎳', 'heavy'],
   [['dice', 'die'], '🎲', 'thing'],
   [['key', 'keys'], '🔑', 'thing', { damage: 15, size: 1.1 }],
-  [['umbrella', 'umbrellas'], '☂️', 'thing'],
-  [['sword', 'swords', 'dagger'], '🗡️', 'thing', { damage: 32 }],
-  [['axe', 'hammer', 'hammers', 'wrench', 'tool', 'tools'], '🔨', 'thing', { damage: 28 }],
+  [['axe', 'wrench', 'tool', 'tools'], '🔨', 'thing', { damage: 28 }],
   [['dynamite', 'tnt', 'grenade', 'explosion', 'explosive'], '🧨', 'boom'],
   [['firework', 'fireworks'], '🎆', 'boom', { damage: 20 }],
   [['printer', 'printers', 'microwave', 'oven', 'washing machine'], '🖨️', 'heavy', { damage: 40 }],
@@ -203,10 +204,9 @@ const LEX = [
   [['trash', 'garbage', 'rubbish', 'bin', 'trashcan'], '🗑️', 'thing'],
   [['poop', 'poo', 'dung'], '💩', 'soft', { damage: 10 }],
   [['star', 'stars', 'shooting star'], '⭐', 'boom', { damage: 26 }],
-  [['snowball', 'snowballs', 'hail'], '❄️', 'thing', { damage: 15 }],
+  [['hail'], '❄️', 'thing', { damage: 15 }],
   [['coconut', 'coconuts'], '🥥', 'thing', { damage: 26 }],
   [['anchor', 'anchors'], '⚓', 'heavy'],
-  [['skateboard', 'scooter'], '🛹', 'thing'],
   [['guitar', 'drum', 'drums', 'trumpet', 'violin'], '🎸', 'thing'],
   [['crown', 'crowns', 'trophy', 'trophies'], '🏆', 'money', { total: 20 }],
   [['tooth', 'teeth'], '🦷', 'thing', { damage: 15 }],
@@ -256,6 +256,16 @@ const LEX = [
   [['party', 'disco', 'dance', 'dancing', 'music', 'song', 'rave', 'concert', 'rainbow'], '🪩', 'disco'],
   [['slow', 'slowmo', 'slow motion', 'time', 'sleep', 'sleepy', 'lazy', 'tired', 'boring'], '🐌', 'slowmo'],
   [['ufo', 'ufos', 'spaceship', 'flying saucer', 'abduction'], '🛸', 'ufo'],
+  // ---------------- the map itself ----------------
+  [['new map', 'map', 'change map', 'new island', 'new world', 'another map', 'different map', 'next map', 'random map', 'reset map', 'map change', 'teleport map', 'shuffle', 'remix', 'new level', 'level'], '🗺️', 'newmap'],
+  [['grassland', 'normal map', 'classic map', 'default map', 'original map', 'meadow'], '🌳', 'maptheme', { theme: 'grass' }],
+  [['desert', 'sahara', 'dunes', 'sand', 'sandy', 'oasis'], '🏜️', 'maptheme', { theme: 'desert' }],
+  [['snow land', 'snowland', 'winterland', 'winter wonderland', 'arctic', 'tundra', 'north pole', 'antarctica', 'south pole'], '❄️', 'maptheme', { theme: 'snow' }],
+  [['jungle', 'rainforest', 'forest', 'woods', 'amazon'], '🌴', 'maptheme', { theme: 'jungle' }],
+  [['candy land', 'candyland', 'candy world', 'sweet land', 'gingerbread'], '🍭', 'maptheme', { theme: 'candy' }],
+  [['autumn', 'halloween', 'spooky', 'pumpkin', 'pumpkins', 'harvest'], '🍂', 'maptheme', { theme: 'autumn' }],
+  [['mars', 'red planet', 'martian land', 'alien planet', 'planet'], '🔴', 'maptheme', { theme: 'mars' }],
+  [['tropical', 'beach', 'paradise', 'hawaii', 'summer', 'vacation', 'holiday'], '🏝️', 'maptheme', { theme: 'tropical' }],
   // only helps the Writer
   [['god', 'gods', 'goddess', 'angel', 'angels', 'immortal', 'invincible', 'superpower', 'superpowers', 'blessing', 'blessed', 'miracle', 'holy', 'heaven', 'divine', 'godmode', 'god mode'], '😇', 'blessing'],
 ];
@@ -274,6 +284,17 @@ const MODS = {
   robot: { color: 0x9aa0a8 }, mecha: 'robot', metal: 'robot', ghost: { color: 0xeeeeff, speed: 1.1 }, invisible: 'ghost', rainbow: { color: 0xc77dff }, flying: { flying: true },
   red: { color: 0xd62828 }, blue: { color: 0x3a86ff }, green: { color: 0x3ddc84 }, yellow: { color: 0xffd23f }, purple: { color: 0x8338ec },
   pink: { color: 0xff70a6 }, orange: { color: 0xf28c28 }, black: { color: 0x222222 }, white: { color: 0xf2f2f2 },
+};
+const MAP_NOUNS = new Set(['map', 'world', 'land', 'island', 'planet', 'kingdom', 'zone', 'place', 'level', 'biome']);
+const MAP_THEME_WORDS = {
+  grass: 'grass', green: 'grass', normal: 'grass', classic: 'grass', default: 'grass', original: 'grass',
+  desert: 'desert', sand: 'desert', sandy: 'desert', hot: 'desert',
+  snow: 'snow', snowy: 'snow', winter: 'snow', ice: 'snow', icy: 'snow', frozen: 'snow', christmas: 'snow', cold: 'snow',
+  jungle: 'jungle', forest: 'jungle', swamp: 'jungle', wild: 'jungle',
+  candy: 'candy', sweet: 'candy', sugar: 'candy', pink: 'candy', rainbow: 'candy', cake: 'candy',
+  autumn: 'autumn', fall: 'autumn', halloween: 'autumn', spooky: 'autumn', scary: 'autumn',
+  mars: 'mars', red: 'mars', alien: 'mars', space: 'mars', lava: 'mars', fire: 'mars',
+  tropical: 'tropical', beach: 'tropical', summer: 'tropical', island: 'tropical', ocean: 'tropical',
 };
 const modFor = (w) => { let m = MODS[w]; if (typeof m === 'string') m = MODS[m]; return m || null; };
 
@@ -336,6 +357,16 @@ export function interpret(raw) {
   const full = words.join(' ');
   const label = cap(full);
 
+  // 0. an item the Writer asks for ("sword", "boots"...) — only they get it
+  const itemId = itemForWord(full);
+  if (itemId) return { item: itemId, label: ITEMS[itemId].name, icon: ITEMS[itemId].icon };
+
+  // 0b. "<theme> map/world/land/island" → change the island
+  if (words.length === 2 && MAP_NOUNS.has(words[1])) {
+    if (MAP_THEME_WORDS[words[0]]) return fromHit({ icon: '🗺️', tmpl: 'maptheme', extra: { theme: MAP_THEME_WORDS[words[0]] } }, label, null);
+    if (['new', 'another', 'different', 'random', 'next', 'other', 'change', 'bigger', 'cool'].includes(words[0])) return fromHit(LOOKUP.get('new map'), label, null);
+  }
+
   // 1. hand-made dictionary word
   const entry = resolveWord(full);
   if (entry) return { entry, label: entry.name };
@@ -386,6 +417,7 @@ export function describe(raw) {
   const r = interpret(raw);
   if (!r) return null;
   if (r.entry) return { icon: r.entry.icon, label: r.label };
+  if (r.item) return { icon: r.icon, label: `${r.label} (just for you!)` };
   return { icon: r.icon, label: r.label };
 }
 
@@ -395,6 +427,10 @@ export function suggestExtra(prefix, n = 6) {
   if (!p) return [];
   const out = [];
   const seen = new Set();
+  for (const it of Object.values(ITEMS)) {
+    const w = it.words.find((x) => x.startsWith(p));
+    if (w && out.length < n) { out.push({ fill: w, icon: it.icon }); seen.add(it.words[0]); }
+  }
   for (const [k, v] of LOOKUP) {
     if (out.length >= n) break;
     if (!k.startsWith(p) || seen.has(v.name)) continue;
@@ -406,6 +442,7 @@ export function suggestExtra(prefix, n = 6) {
 
 /** A random extra word for bots ("giant chicken", "pizza", "ninja"...). */
 export function randomSmartWord() {
+  if (Math.random() < 0.15) { const ids = Object.keys(ITEMS); return ITEMS[ids[Math.floor(Math.random() * ids.length)]].words[0]; }
   const [words] = LEX[Math.floor(Math.random() * LEX.length)];
   const w = words[0];
   if (Math.random() < 0.25) {

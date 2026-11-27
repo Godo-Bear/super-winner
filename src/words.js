@@ -70,7 +70,7 @@ export const DICTIONARY = [
   { id: 'shield', name: 'Shield', icon: '🛡️', category: 'helpful', hazard: 'shield', aliases: ['shields', 'armor', 'armour', 'force field', 'bubble'], desc: 'Grab a bubble shield.', hint: 'Grab a shield orb!', weight: 0.5 },
   { id: 'jetpack', name: 'Jetpack', icon: '🚀', category: 'helpful', hazard: 'jetpack', aliases: ['jetpacks', 'jet pack', 'rocket', 'fly', 'flying', 'wings'], desc: 'Hold jump to fly for a while.', hint: 'Grab one, then HOLD jump!', weight: 0.5 },
   { id: 'speed', name: 'Speed', icon: '⚡', category: 'helpful', hazard: 'speed', aliases: ['fast', 'faster', 'sprint', 'speed boost', 'run', 'zoom'], desc: 'Speed boost pickups.', hint: 'Grab a speed boost!', weight: 0.5 },
-  { id: 'heal', name: 'Heal', icon: '💚', category: 'helpful', hazard: 'heal', aliases: ['heals', 'health', 'medkit', 'medicine', 'potion', 'hospital', 'doctor'], desc: 'Healing pickups.', hint: 'Grab the green crosses!', weight: 0.5 },
+  { id: 'heal', name: 'Heal', icon: '💚', category: 'helpful', hazard: 'heal', aliases: ['heals', 'health', 'medicine', 'potion', 'hospital', 'doctor'], desc: 'Healing pickups.', hint: 'Grab the green crosses!', weight: 0.5 },
 
   // ---------- Silly ----------
   { id: 'banana', name: 'Banana', icon: '🍌', category: 'silly', hazard: 'banana', aliases: ['bananas', 'banana peel', 'peel', 'peels'], desc: 'Peels rain down. Slip city.', hint: 'Watch your step!' },

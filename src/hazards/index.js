@@ -50,15 +50,18 @@ export class HazardManager {
     // the word brain: dictionary word, describing word + noun, extra words, word parts... or a Mystery Blob
     const meaning = interpret(word);
     let Cls = null, entry = null, spec = null;
-    if (meaning?.entry) { entry = meaning.entry; Cls = REGISTRY[entry.hazard]; }
+    if (meaning?.item) { Cls = REGISTRY.giveitem; spec = { item: meaning.item }; }
+    else if (meaning?.entry) { entry = meaning.entry; Cls = REGISTRY[entry.hazard]; }
     else if (meaning?.hazard) { Cls = REGISTRY[meaning.hazard]; spec = meaning.spec; }
     if (!Cls) { Cls = REGISTRY.mystery; entry = null; spec = null; }
     if (!Cls) return null;
     while (this.list.length >= this.max) this.remove(this.list[0]);
     const h = new Cls(this.game, { word, entry, owner, spec });
     if (meaning && Cls !== REGISTRY.mystery) {
-      h.label = meaning.label || h.label;
-      if (meaning.icon && !entry) h.icon = meaning.icon;
+      if (!h.keepLabel) {
+        h.label = meaning.label || h.label;
+        if (meaning.icon && !entry) h.icon = meaning.icon;
+      }
       h.smart = !entry; // made by the word brain (shown in the Index under "other words")
     }
     h.uid = ++this.uid;

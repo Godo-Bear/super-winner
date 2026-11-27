@@ -4,6 +4,7 @@ import { DEFAULT_RELAY } from './net/connection.js';
 import { ITEMS, SLOTS, isOwned, buy, DEFAULT_EQUIPPED } from './shop.js';
 import { writeSave } from './save.js';
 import { MODES } from './modes.js';
+import { ITEMS as GAME_ITEMS } from './items.js';
 import { ensureQuests, questInfo, xpForLevel } from './progress.js';
 const $ = (id) => document.getElementById(id);
 
@@ -81,7 +82,32 @@ export class UI {
       g.player.startEmote(Number(b.dataset.emote));
       $('emote-menu').classList.add('hidden');
     });
+    $('hotbar').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-slot]');
+      if (!b) return;
+      const i = Number(b.dataset.slot);
+      if (i === (g.player.held || 0)) g.useItem(i); else g.selectItem(i);
+    });
+    $('touch-use').addEventListener('touchstart', (e) => { e.preventDefault(); g.useItem(); }, { passive: false });
+    $('touch-use').addEventListener('click', () => g.useItem());
     $('writer-close').addEventListener('click', () => { this.closeWriter(); g.writer.freeWriting = false; });
+  }
+
+  /** Item hotbar at the bottom of the screen. */
+  renderHotbar() {
+    const p = this.game.player;
+    const items = (p && p.alive && p.items) || [];
+    const key = items.map((i) => `${i.id}:${i.uses}`).join(',') + `|${p ? p.held : 0}`;
+    if (key === this.hotbarKey) return;
+    this.hotbarKey = key;
+    $('hotbar').classList.toggle('hidden', !items.length);
+    $('touch-use').classList.toggle('hidden', !items.some((i) => !GAME_ITEMS[i.id]?.passive));
+    if (!items.length) return;
+    $('hotbar').innerHTML = items.map((s, i) => {
+      const it = GAME_ITEMS[s.id];
+      const uses = Number.isFinite(s.uses) ? `<small>${s.uses}</small>` : it.passive ? '<small>auto</small>' : '';
+      return `<button class="slot ${i === (p.held || 0) ? 'on' : ''}" data-slot="${i}" title="${esc(it.name)}">${it.icon}${uses}</button>`;
+    }).join('') + '<span class="hb-hint">E use · Q switch</span>';
   }
 
   renderModes() {
@@ -386,6 +412,7 @@ export class UI {
     const alive = g.characters.filter((c) => c.alive).length;
     $('alive').textContent = `👥 ${alive} alive`;
     $('btn-write').classList.toggle('hidden', !g.modeCfg.sandbox || g.mode === 'client');
+    this.renderHotbar();
     $('btn-pause').classList.toggle('hidden', !g.canPause);
     const data = g.hudData();
     $('writer-status').textContent = data.writer;

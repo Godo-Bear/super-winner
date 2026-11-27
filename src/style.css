@@ -149,7 +149,7 @@ button, .sug, .shop-item, .index-item { touch-action: manipulation; -webkit-tap-
 #joy-zone { position: absolute; left: 0; bottom: 0; width: 45%; height: 60%; pointer-events: auto; touch-action: none; }
 #joy-base { position: absolute; left: 40px; bottom: 40px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,255,255,.2); border: 3px solid rgba(255,255,255,.6); box-shadow: 0 0 0 3px rgba(27,21,48,.35); }
 #joy-knob { position: absolute; left: 37px; top: 37px; width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.85); border: 3px solid var(--ink); }
-#touch-jump, #touch-sprint, #touch-fullscreen {
+#touch-jump, #touch-sprint, #touch-fullscreen, #touch-use {
   position: absolute; pointer-events: auto; touch-action: none; border-radius: 50%; border: 3px solid var(--ink); font-weight: 900; color: var(--ink);
   display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; box-shadow: 0 4px 0 var(--ink); user-select: none; -webkit-user-select: none;
 }
@@ -291,3 +291,17 @@ details.field[open] summary { margin-bottom: 6px; }
   .mode { width: 30vw; padding: 6px; }
   .mode small { display: none; }
 }
+
+/* ---------- Item hotbar ---------- */
+#hotbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; pointer-events: auto; }
+#hotbar .slot {
+  position: relative; width: 56px; height: 56px; font-size: 30px; border-radius: 12px; border: 3px solid var(--ink);
+  background: rgba(255,248,231,.9); cursor: pointer; box-shadow: 0 4px 0 var(--ink); touch-action: manipulation;
+}
+#hotbar .slot.on { background: var(--yellow); transform: translateY(-4px); }
+#hotbar .slot small { position: absolute; right: 3px; bottom: 1px; font-size: 11px; font-weight: 900; color: var(--ink); }
+#hotbar .hb-hint { font-size: 12px; font-weight: 800; text-shadow: 0 2px 0 var(--ink); margin-left: 4px; }
+body.touch-mode #hotbar { bottom: 150px; }
+body.touch-mode #hotbar .hb-hint { display: none; }
+#touch-use { right: 142px; bottom: 112px; width: 72px; height: 72px; background: rgba(199, 125, 255, .9); font-size: 24px; }
+#touch-use small { font-size: 11px; letter-spacing: 1px; }

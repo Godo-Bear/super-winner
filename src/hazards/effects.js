@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Hazard } from './base.js';
 import { warnCircle, groundY, stepToward } from './common.js';
 import { rand, block, flatMat, makeTextSprite } from '../utils.js';
+import { ITEMS } from '../items.js';
+import { THEMES } from '../island.js';
 
 const DARK_FOG = new THREE.Color(0x0b0b1e);
 const DARK_SKY = new THREE.Color(0x1a1a3a);
@@ -364,4 +366,49 @@ export class Blessing extends Hazard {
   }
 }
 
-export default { wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };
+// ------------------------------------------------------------------ GIVE ITEM ("sword", "boots"...)
+/** The Writer asked for an item: only they get it. */
+export class GiveItem extends Hazard {
+  constructor(game, opts) {
+    super(game, opts);
+    const id = opts.spec?.item;
+    const it = ITEMS[id];
+    this.duration = 2.5;
+    this.recurring = false;
+    this.icon = it ? it.icon : '🎁';
+    this.label = it ? it.name : 'Item';
+    this.hint = `🎁 Only ${opts.owner ? opts.owner.name : 'the Writer'} gets it!`;
+    if (it && opts.owner && opts.owner.alive) {
+      game.items.give(opts.owner, id);
+      const p = opts.owner.pos;
+      this.particles.emit({ x: p.x, y: p.y + 1.5, z: p.z, color: [0xffe066, 0xffffff, 0xc77dff], count: 24, speed: 5, up: 3, size: 0.25, life: 0.7 });
+    }
+  }
+}
+
+// ------------------------------------------------------------------ MAP CHANGE ("new map", "desert", "candy land"...)
+export class MapChange extends Hazard {
+  constructor(game, opts) {
+    super(game, opts);
+    this.duration = 3;
+    this.recurring = false;
+    const cur = game.island.themeId;
+    let theme = opts.spec?.theme || 'random';
+    if (theme === 'random') {
+      const ids = Object.keys(THEMES).filter((t) => t !== cur);
+      theme = ids[Math.floor(Math.random() * ids.length)];
+    }
+    // "new map" reshuffles the layout too; a theme word keeps the layout and just re-skins it
+    const seed = opts.spec?.reshuffle ? Math.floor(Math.random() * 1e9) : game.island.seed;
+    const t = THEMES[theme];
+    this.icon = t.icon;
+    this.label = opts.spec?.reshuffle ? `New Map: ${t.name}` : t.name;
+    this.hint = `${t.icon} Welcome to ${t.name}!`;
+    this.keepLabel = true;
+    game.changeMap(theme, seed);
+    this.audio.whoosh();
+    this.audio.tone({ freq: 300, to: 900, type: 'triangle', dur: 0.6, vol: 0.12 });
+  }
+}
+
+export default { mapchange: MapChange, giveitem: GiveItem, wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };

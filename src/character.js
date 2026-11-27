@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { makeHumanoid, animateHumanoid } from './models.js';
 import { makeTextSprite, angleLerp } from './utils.js';
 import { KILL_Y } from './island.js';
+import { ITEMS, ITEM_IDS, hasPassive, makeHeldModel } from './items.js';
 
 export const GRAVITY = 28;
 export const JUMP_V = 11;
@@ -121,15 +122,18 @@ export class Character {
     const len = Math.hypot(ix, iz);
     if (len > 1) { ix /= len; iz /= len; }
     if (this.tripped > 0) { ix = 0; iz = 0; }
-    const speed = (this.input.sprint ? SPRINT : WALK) * this.mods.speedMul * env.speedMul * (this.speedBoost > 0 ? 1.6 : 1);
+    const speed = (this.input.sprint ? SPRINT : WALK) * this.mods.speedMul * env.speedMul * (this.speedBoost > 0 ? 1.6 : 1) * (hasPassive(this, 'fast') ? 1.35 : 1);
     const friction = Math.min(this.mods.friction, env.friction);
     const rate = this.onGround ? (this.tripped > 0 ? 1.2 : 14 * friction) : 2.4;
     const k = 1 - Math.exp(-rate * dt);
     this.vel.x += (ix * speed - this.vel.x) * k;
     this.vel.z += (iz * speed - this.vel.z) * k;
 
-    if (this.input.jump && this.onGround && this.tripped <= 0) {
-      this.vel.y = JUMP_V * this.mods.jumpMul;
+    if (this.onGround) this.airJumps = 0;
+    const canDouble = !this.onGround && hasPassive(this, 'doublejump') && (this.airJumps || 0) < 1;
+    if (this.input.jump && (this.onGround || canDouble) && this.tripped <= 0) {
+      if (!this.onGround) { this.airJumps = (this.airJumps || 0) + 1; game.particles.emit({ x: this.pos.x, y: this.pos.y, z: this.pos.z, color: [0xffffff, 0x7fd4ff], count: 8, speed: 3, size: 0.2, life: 0.4 }); }
+      this.vel.y = JUMP_V * this.mods.jumpMul * (hasPassive(this, 'superjump') ? 1.55 : 1);
       this.onGround = false;
       if (this.isPlayer) { game.audio.jump(); game.track('jump'); }
     }
@@ -139,6 +143,9 @@ export class Character {
       if (Math.random() < 0.6) game.particles.emit({ x: this.pos.x, y: this.pos.y + 0.8, z: this.pos.z, color: [0xffa31a, 0xffe066, 0xff5a1f], count: 2, speed: 2, size: 0.25, life: 0.4, gravity: -2, dir: { x: 0, y: -1, z: 0 } });
     }
     this.vel.y -= GRAVITY * env.gravityMul * dt;
+    // umbrella: hold jump while falling to float down gently
+    this.gliding = hasPassive(this, 'glide') && !this.onGround && this.input.jumpHeld && this.vel.y < -2.5;
+    if (this.gliding) this.vel.y = -2.5;
     if (this.vel.y < -32) this.vel.y = -32;
 
     this.pos.x += (this.vel.x + env.windX) * dt;
@@ -219,6 +226,18 @@ export class Character {
         }
       }
     }
+    // item in hand (+ swing when used)
+    const heldId = this.netHeld !== undefined ? this.netHeld : (this.items && this.items[this.held || 0] ? this.items[this.held || 0].id : null);
+    if (heldId !== this.heldShown) {
+      if (this.heldModel) { parts.armR.remove(this.heldModel); this.heldModel = null; }
+      if (heldId && ITEMS[heldId]) { this.heldModel = makeHeldModel(heldId); parts.armR.add(this.heldModel); }
+      this.heldShown = heldId;
+    }
+    if (this.swingT > 0) {
+      this.swingT -= dt;
+      const k = Math.max(0, this.swingT) / 0.3;
+      parts.armR.rotation.x = -2.8 * k + 0.6 * (1 - k);
+    } else if (this.heldModel && heldId === 'umbrella' && this.gliding) parts.armR.rotation.x = -3;
     this.mesh.position.set(this.pos.x, this.pos.y - this.mods.sink, this.pos.z);
     this.mesh.rotation.set(this.tripped > 0 ? -1.2 : 0, this.yaw + this.spin + emoteSpin, 0);
     const flash = this.hurtFlash > 0 ? this.hurtFlash * 4 : 0;
