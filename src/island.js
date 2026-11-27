@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { block, boxGeo, flatMat, mulberry32, clamp, rand } from './utils.js';
 
-export const ISLAND_RADIUS = 30;
-export const HILL = { x: 9, z: -6, r: 9, h: 5.5 };
-export const HUT = { x: -7, z: 5, hx: 3.25, hz: 3.25, h: 3.4 };
+export const ISLAND_RADIUS = 42;
+/** Size relative to the original 30-unit island (hazard distances were tuned for that). */
+export const MAP_SCALE = ISLAND_RADIUS / 30;
+export const HILL = { x: 12, z: -8, r: 11, h: 6 };
+/** All hills: the big one (volcano) plus a smaller one on the far side. Hilltops are safe from tsunamis. */
+export const HILLS = [HILL, { x: -20, z: -17, r: 9, h: 5 }];
+export const HUT = { x: -9, z: 7, hx: 3.25, hz: 3.25, h: 3.4 };
 export const KILL_Y = -18;
 
 const PINE_GEO = new THREE.ConeGeometry(1.5, 2.1, 6);
@@ -14,10 +18,11 @@ const STEP = 0.4; // how far below a ledge top your feet may be and still climb 
 export function terrainHeight(x, z) {
   const d = Math.hypot(x, z);
   if (d > ISLAND_RADIUS) return -Infinity;
-  const hd = Math.hypot(x - HILL.x, z - HILL.z);
   let h = 0;
-  if (hd < HILL.r) h = HILL.h * (0.5 + 0.5 * Math.cos((Math.PI * hd) / HILL.r));
-  h = Math.min(h, HILL.h - 0.25);
+  for (const hill of HILLS) {
+    const hd = Math.hypot(x - hill.x, z - hill.z);
+    if (hd < hill.r) h = Math.max(h, Math.min(hill.h - 0.25, hill.h * (0.5 + 0.5 * Math.cos((Math.PI * hd) / hill.r))));
+  }
   // gentle bumps so the low-poly surface feels hand made (never negative)
   h += 0.09 * (1 + Math.sin(x * 0.7) * Math.cos(z * 0.6));
   return h;
@@ -61,6 +66,7 @@ export class Island {
     this.shelters = [];
     this.trees = [];
     this.highPoint = { x: HILL.x, z: HILL.z };
+    this.highPoints = HILLS.map((h) => ({ x: h.x, z: h.z }));
     this.build();
     this.staticColliders = this.colliders.length; // walls/bunkers/etc. from hazards come after these
   }
@@ -76,7 +82,7 @@ export class Island {
   }
 
   buildGround(rng) {
-    const geo = new THREE.RingGeometry(0.01, ISLAND_RADIUS, 56, 18);
+    const geo = new THREE.RingGeometry(0.01, ISLAND_RADIUS, 72, 24);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position;
     const colors = [];
@@ -229,9 +235,9 @@ export class Island {
 
     // grass tufts + flowers as two instanced meshes (2 draw calls for ~1300 objects)
     const tuftGeo = new THREE.ConeGeometry(0.13, 0.32, 4);
-    const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 1100);
+    const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 2000);
     const flowerGeo = new THREE.BoxGeometry(0.17, 0.17, 0.17);
-    const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 160);
+    const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 300);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
     const col = new THREE.Color();
     const blocked = (x, z) => {
@@ -261,13 +267,13 @@ export class Island {
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       this.group.add(mesh);
     };
-    place(tufts, 1100, 0.13, (c) => c.setHSL(0.26 + rng() * 0.06, 0.55, 0.42 + rng() * 0.1), () => 0.8 + rng() * 0.7);
+    place(tufts, 2000, 0.13, (c) => c.setHSL(0.26 + rng() * 0.06, 0.55, 0.42 + rng() * 0.1), () => 0.8 + rng() * 0.7);
     const petals = [0xffffff, 0xffe066, 0xff8fa3, 0xc77dff, 0xff595e, 0x7fd4ff];
-    place(flowers, 160, 0.22, (c) => c.set(petals[Math.floor(rng() * petals.length)]), () => 0.8 + rng() * 0.5);
+    place(flowers, 300, 0.22, (c) => c.set(petals[Math.floor(rng() * petals.length)]), () => 0.8 + rng() * 0.5);
 
     // roots and vines dangling under the rim
-    for (let i = 0; i < 48; i++) {
-      const a = (i / 48) * Math.PI * 2 + rng() * 0.1;
+    for (let i = 0; i < 68; i++) {
+      const a = (i / 68) * Math.PI * 2 + rng() * 0.1;
       if (Math.abs(Math.atan2(Math.sin(a - best), Math.cos(a - best))) < 0.12) continue;
       const rr = R - 0.4 - rng() * 1.2;
       const len = 1 + rng() * 3.5;
@@ -299,11 +305,11 @@ export class Island {
 
   buildTrees(rng) {
     let tries = 0;
-    while (this.trees.length < 14 && tries++ < 400) {
+    while (this.trees.length < 28 && tries++ < 900) {
       const a = rng() * Math.PI * 2, r = 7 + rng() * (ISLAND_RADIUS - 10);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (Math.hypot(x - HUT.x, z - HUT.z) < 6.5) continue;
-      if (Math.hypot(x - HILL.x, z - HILL.z) < 3.5) continue;
+      if (HILLS.some((hl) => Math.hypot(x - hl.x, z - hl.z) < 3.5)) continue;
       if (this.trees.some((t) => Math.hypot(t.x - x, t.z - z) < 5)) continue;
       const y = terrainHeight(x, z);
       const g = new THREE.Group();
@@ -347,7 +353,7 @@ export class Island {
   buildRocks(rng) {
     let n = 0, tries = 0;
     const placed = [];
-    while (n < 10 && tries++ < 400) {
+    while (n < 18 && tries++ < 900) {
       const a = rng() * Math.PI * 2, r = 5 + rng() * (ISLAND_RADIUS - 8);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (Math.hypot(x - HUT.x, z - HUT.z) < 6) continue;
@@ -378,7 +384,7 @@ export class Island {
     // floating mini islands
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2 + rng();
-      const r = 45 + rng() * 30;
+      const r = ISLAND_RADIUS + 18 + rng() * 34;
       const g = new THREE.Group();
       const s = 2 + rng() * 3;
       g.add(block(s * 2, s * 0.5, s * 2, 0x52b356, 0, 0, 0, false));
@@ -557,13 +563,16 @@ export class Island {
   }
 
   /** Random point on the island. */
-  randomPoint(minR = 0, maxR = ISLAND_RADIUS - 3, { avoidHut = true, avoidHill = false } = {}) {
+  randomPoint(minR = 0, maxR = ISLAND_RADIUS - 3, { avoidHut = true, avoidHill = false, scale = true } = {}) {
+    if (scale) { minR *= MAP_SCALE; maxR *= MAP_SCALE; }
+    maxR = Math.min(maxR, ISLAND_RADIUS - 2);
+    minR = Math.min(minR, maxR - 1);
     for (let i = 0; i < 40; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(rand(minR * minR, maxR * maxR));
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (avoidHut && Math.abs(x - HUT.x) < HUT.hx + 1.5 && Math.abs(z - HUT.z) < HUT.hz + 1.5) continue;
-      if (avoidHill && Math.hypot(x - HILL.x, z - HILL.z) < HILL.r * 0.8) continue;
+      if (avoidHill && HILLS.some((hl) => Math.hypot(x - hl.x, z - hl.z) < hl.r * 0.8)) continue;
       if (avoidHut && this.shelters.some((s) => Math.abs(x - s.x) < s.hx + 1 && Math.abs(z - s.z) < s.hz + 1)) continue;
       return { x, z };
     }

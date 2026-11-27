@@ -70,11 +70,11 @@ export class Tsunami extends Hazard {
     this.s = -this.R - 6;
     const wave = new THREE.Group();
     const body = new THREE.Mesh(boxGeo(1, 1, 1), waveMat);
-    body.scale.set(80, this.height + 0.6, 6);
+    body.scale.set(this.R * 2 + 30, this.height + 0.6, 6);
     body.position.y = (this.height + 0.6) / 2 - 0.6;
     wave.add(body);
     const foam = new THREE.Mesh(boxGeo(1, 1, 1), foamMat);
-    foam.scale.set(80, 0.5, 2.2);
+    foam.scale.set(this.R * 2 + 30, 0.5, 2.2);
     foam.position.set(0, this.height + 0.1, 1.6);
     wave.add(foam);
     wave.rotation.y = Math.atan2(this.dir.x, this.dir.z);

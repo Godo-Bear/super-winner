@@ -96,8 +96,10 @@ function think(bot, game) {
       ax *= 0.15; az *= 0.15; // being inside matters more than dodging
     }
   } else if (mode === 'high') {
-    tx = island.highPoint.x + Math.sin(bot.id * 2.3) * 1.2;
-    tz = island.highPoint.z + Math.cos(bot.id * 2.3) * 1.2;
+    // nearest hilltop
+    const hp = island.highPoints.reduce((a, b) => (Math.hypot(p.x - a.x, p.z - a.z) <= Math.hypot(p.x - b.x, p.z - b.z) ? a : b));
+    tx = hp.x + Math.sin(bot.id * 2.3) * 1.2;
+    tz = hp.z + Math.cos(bot.id * 2.3) * 1.2;
     sprint = true; precise = true;
   } else if (seek) {
     tx = seek.x; tz = seek.z; precise = true;
@@ -107,7 +109,7 @@ function think(bot, game) {
     ai.retarget -= 0.15;
     if (!ai.target || ai.retarget <= 0 || Math.hypot(p.x - ai.target.x, p.z - ai.target.z) < 1.5) {
       const maxR = Math.min(ISLAND_RADIUS - 6, ringR - 4);
-      ai.target = island.randomPoint(0, Math.max(3, maxR), { avoidHut: false });
+      ai.target = island.randomPoint(0, Math.max(3, maxR), { avoidHut: false, scale: false });
       ai.retarget = rand(3, 8);
       ai.idle = Math.random() < 0.25 ? rand(0.5, 2) : 0;
     }

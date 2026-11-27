@@ -28,7 +28,7 @@ export const CATEGORIES = {
 
 export const DICTIONARY = [
   // ---------- Disasters ----------
-  { id: 'tsunami', name: 'Tsunami', icon: '🌊', category: 'disaster', hazard: 'tsunami', aliases: ['tsunamis', 'tidal wave', 'wave', 'waves', 'flood', 'floods'], desc: 'A giant wave sweeps across the island.', hint: 'Climb the HILL or hide in the HUT!' },
+  { id: 'tsunami', name: 'Tsunami', icon: '🌊', category: 'disaster', hazard: 'tsunami', aliases: ['tsunamis', 'tidal wave', 'wave', 'waves', 'flood', 'floods'], desc: 'A giant wave sweeps across the island.', hint: 'Climb a HILL or hide in the HUT!' },
   { id: 'meteor', name: 'Meteor', icon: '☄️', category: 'disaster', hazard: 'meteor', aliases: ['meteors', 'asteroid', 'asteroids', 'comet', 'comets', 'meteorite', 'meteor shower'], desc: 'Flaming rocks crash into red circles.', hint: 'Stay out of the red circles!' },
   { id: 'earthquake', name: 'Earthquake', icon: '🫨', category: 'disaster', hazard: 'earthquake', aliases: ['earthquakes', 'quake', 'quakes', 'tremor'], desc: 'The ground shakes and cracks open.', hint: 'Dodge the glowing cracks!' },
   { id: 'volcano', name: 'Volcano', icon: '🌋', category: 'disaster', hazard: 'volcano', aliases: ['volcanoes', 'volcanos', 'eruption', 'magma'], desc: 'The hill erupts and rains lava bombs.', hint: 'Get OFF the hill and dodge the bombs!' },

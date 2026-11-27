@@ -124,7 +124,8 @@ export class Game {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     const s = sun.shadow.camera;
-    s.left = -36; s.right = 36; s.top = 36; s.bottom = -36; s.near = 5; s.far = 120;
+    const S = ISLAND_RADIUS + 6;
+    s.left = -S; s.right = S; s.top = S; s.bottom = -S; s.near = 5; s.far = 150;
     sun.shadow.bias = -0.0008;
     sun.shadow.normalBias = 0.04;
     this.scene.add(sun);
@@ -308,9 +309,9 @@ export class Game {
     const offset = Math.random() * Math.PI * 2;
     this.characters.forEach((c, i) => {
       if (c.isBot) c.setName(names[i - 1]);
-      let a = offset + (i / n) * Math.PI * 2, r = 15;
+      let a = offset + (i / n) * Math.PI * 2, r = ISLAND_RADIUS * 0.5;
       let x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (this.island.shelterAt({ x, y: 0, z }) || Math.abs(x + 7) < 5 && Math.abs(z - 5) < 5) { r = 21; x = Math.cos(a) * r; z = Math.sin(a) * r; }
+      if (this.island.shelterAt({ x, y: 0, z }) || Math.abs(x + 9) < 5 && Math.abs(z - 7) < 5) { r = ISLAND_RADIUS * 0.7; x = Math.cos(a) * r; z = Math.sin(a) * r; }
       c.spawn(x, z, terrainHeight(x, z) + 0.6);
       if (c.isBot) initBotAI(c);
       c.kills = 0;
@@ -743,7 +744,7 @@ export class Game {
       this.camera.lookAt(wide ? 1.7 : 0, gy + (wide ? 1.3 : 0.4), 2);
     } else {
       const a = this.time * 0.06;
-      this.camera.position.set(Math.cos(a) * 52, 26, Math.sin(a) * 52);
+      this.camera.position.set(Math.cos(a) * ISLAND_RADIUS * 1.75, ISLAND_RADIUS * 0.85, Math.sin(a) * ISLAND_RADIUS * 1.75);
       this.camera.lookAt(0, -2, 0);
     }
     this.shake *= Math.exp(-5 * dt);

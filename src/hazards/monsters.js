@@ -124,7 +124,7 @@ export class Dragon extends Hazard {
   update(dt) {
     const enter = Math.min(1, this.t / 2.5);
     this.angle += dt * 0.32;
-    const r = 22 + (1 - enter) * 40;
+    const r = this.R * 0.73 + (1 - enter) * 40;
     const x = Math.cos(this.angle) * r, z = Math.sin(this.angle) * r;
     const y = 15 + Math.sin(this.t * 0.8) * 1.5;
     this.dragon.position.set(x, y, z);

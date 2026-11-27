@@ -17,7 +17,7 @@ export class Lava extends Hazard {
     super(game, opts);
     this.duration = 45;
     this.killVerb = 'melted in the LAVA';
-    this.minR = 14;
+    this.minR = 19; // keeps the hut and the big hill clear
     this.r = this.R + 1;
     this.mat = this.track(new THREE.MeshBasicMaterial({ color: 0xff5a00, side: THREE.DoubleSide }));
     this.mesh = new THREE.Mesh(new THREE.RingGeometry(this.r, this.R + 4, 64, 1).rotateX(-Math.PI / 2), this.mat);
