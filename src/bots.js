@@ -83,7 +83,7 @@ function think(bot, game) {
     } else if (t.type === 'seek') {
       if (t.lowHpOnly && bot.hp > 70) continue;
       const d = Math.hypot(p.x - t.x, p.z - t.z);
-      if (d < 20 && d < seekD) { seekD = d; seek = t; }
+      if (d < (t.range || 20) && d < seekD) { seekD = d; seek = t; }
     }
   }
 
@@ -112,7 +112,11 @@ function think(bot, game) {
       ai.idle = Math.random() < 0.25 ? rand(0.5, 2) : 0;
     }
     tx = ai.target.x; tz = ai.target.z;
-    if (ai.idle > 0) { ai.idle -= 0.15; tx = p.x; tz = p.z; }
+    if (ai.idle > 0) {
+      ai.idle -= 0.15;
+      tx = p.x; tz = p.z;
+      if (!bot.emoteId && Math.random() < 0.03) bot.startEmote(1 + Math.floor(Math.random() * 4));
+    }
     if (Math.random() < 0.01) ai.wantJump = true;
   }
 

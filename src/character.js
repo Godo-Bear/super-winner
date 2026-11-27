@@ -98,8 +98,17 @@ export class Character {
     if (y > 0) this.onGround = false;
   }
 
+  /** Emotes: 1 wave, 2 dance, 3 flex, 4 spin. They stop as soon as you move. */
+  startEmote(id) {
+    if (!this.alive) return;
+    this.emoteId = id;
+    this.emoteT = 0;
+    if (this.isPlayer) this.game.track('emote');
+  }
+
   update(dt) {
     if (!this.alive) return;
+    this.invincible = Math.max(0, (this.invincible || 0) - dt);
     // online: remote humans (on the host) and everyone else (on clients) are moved by the network
     if (this.remote || this.netDriven) { this.updateVisual(dt); return; }
     const game = this.game, env = game.env;
@@ -122,7 +131,7 @@ export class Character {
     if (this.input.jump && this.onGround && this.tripped <= 0) {
       this.vel.y = JUMP_V * this.mods.jumpMul;
       this.onGround = false;
-      if (this.isPlayer) game.audio.jump();
+      if (this.isPlayer) { game.audio.jump(); game.track('jump'); }
     }
     this.input.jump = false;
     if (this.jetpack > 0 && this.input.jumpHeld) {
@@ -188,14 +197,44 @@ export class Character {
     parts.head.rotation.x = -lean * 0.6;
     parts.head.rotation.y = Math.sin(t * 0.6) * 0.15 * (1 - moving);
 
+    // emotes (stop when you start moving)
+    let emoteSpin = 0;
+    if (this.emoteId) {
+      this.emoteT = (this.emoteT || 0) + dt;
+      if ((!this.netDriven && !this.remote && hs > 1.2) || this.emoteT > 4 || !this.onGround) this.emoteId = 0;
+      else {
+        const e = this.emoteT;
+        if (this.emoteId === 1) { parts.armR.rotation.x = -2.9; parts.armR.rotation.z = 0.4 + Math.sin(e * 12) * 0.4; }
+        else if (this.emoteId === 2) {
+          parts.armL.rotation.x = -2.6 + Math.sin(e * 8) * 0.6; parts.armR.rotation.x = -2.6 - Math.sin(e * 8) * 0.6;
+          parts.legL.rotation.x = Math.sin(e * 8) * 0.4; parts.legR.rotation.x = -Math.sin(e * 8) * 0.4;
+          root.position.y = Math.abs(Math.sin(e * 8)) * 0.25;
+          emoteSpin = Math.sin(e * 4) * 0.6;
+        } else if (this.emoteId === 3) {
+          parts.armL.rotation.set(0, 0, -1.5); parts.armR.rotation.set(0, 0, 1.5);
+          parts.armL.rotation.x = -0.3 + Math.sin(e * 6) * 0.15; parts.armR.rotation.x = -0.3 - Math.sin(e * 6) * 0.15;
+        } else if (this.emoteId === 4) {
+          emoteSpin = e * 9;
+          parts.armL.rotation.z = -1.3; parts.armR.rotation.z = 1.3;
+        }
+      }
+    }
     this.mesh.position.set(this.pos.x, this.pos.y - this.mods.sink, this.pos.z);
-    this.mesh.rotation.set(this.tripped > 0 ? -1.2 : 0, this.yaw + this.spin, 0);
+    this.mesh.rotation.set(this.tripped > 0 ? -1.2 : 0, this.yaw + this.spin + emoteSpin, 0);
     const flash = this.hurtFlash > 0 ? this.hurtFlash * 4 : 0;
     for (const m of this.model.materials) m.emissive.setRGB(flash, 0, 0);
-    parts.head.children.forEach((c) => {
-      if (c.userData.spin) c.rotation.y += dt * 14;
-      if (c.userData.mouth) c.scale.y = flash > 0 ? 3 : 1; // "ouch" face
-    });
+    parts.head.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 14; });
+    // face: blink every few seconds, "ouch" when hurt, worried brows when low on HP
+    const f = parts.face;
+    if (f && f.eyes.length) {
+      this.blinkT = (this.blinkT ?? Math.random() * 4) - dt;
+      if (this.blinkT < -0.12) this.blinkT = 2.5 + Math.random() * 3;
+      const shut = this.blinkT < 0 || flash > 0;
+      for (const e of f.eyes) e.scale.y = shut ? 0.15 : 1;
+      if (f.mouth) { f.mouth.scale.set(flash > 0 ? 0.8 : 1, flash > 0 ? 3 : 1, 1); }
+      const worried = this.hp < 35 || flash > 0 ? -0.4 : -0.12;
+      if (f.browL) { f.browL.rotation.z = -worried; f.browR.rotation.z = worried; }
+    }
     this.shieldMesh.visible = this.shield > 0;
     if (this.shield > 0) this.shieldMesh.rotation.y += dt * 2;
   }

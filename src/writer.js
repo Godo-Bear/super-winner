@@ -39,7 +39,7 @@ export class WriterSystem {
 
   reset() {
     this.phase = 'waiting';
-    this.timer = 5;
+    this.timer = this.game.modeCfg ? this.game.modeCfg.firstTurn : 5;
     this.turns = 0;
     this.writer = null;
     this.playerWriting = false;
@@ -90,9 +90,28 @@ export class WriterSystem {
     return w;
   }
 
-  get interval() { return this.turns > 8 ? LATE_INTERVAL : TURN_INTERVAL; }
+  get interval() { const m = this.game.modeCfg; return this.turns > 8 ? m.lateInterval : m.interval; }
+  get writeTime() { return this.game.modeCfg.writeTime || WRITE_TIME; }
+
+  /** Sandbox: the player can write a word whenever they like (no timer, no turn). */
+  freeWrite() {
+    const g = this.game;
+    if (!g.modeCfg.sandbox || g.state !== 'playing' || this.playerWriting) return;
+    g.ui.openWriter((word) => {
+      const w = word.trim();
+      if (w.split(/\s+/).length > 2) return g.ui.writerError('Use 1 or 2 words!');
+      if (w.replace(/\s/g, '').length < 2) return g.ui.writerError('Type at least 2 letters!');
+      if (!isWordAllowed(w)) return g.ui.writerError("🚫 That word isn't allowed. Try another!");
+      g.ui.closeWriter();
+      this.freeWriting = false;
+      const h = g.hazards.spawn(w, g.player);
+      if (h) g.announceWord(g.player, h);
+    }, { noTimer: true });
+    this.freeWriting = true;
+  }
 
   statusText() {
+    if (this.game.modeCfg.sandbox && this.phase !== 'writing') return '🧪 Sandbox · press ✍️ or T to write a word';
     if (this.phase === 'waiting') return `✍️ Next word in ${Math.ceil(this.timer)}s`;
     if (this.phase === 'writing') {
       if (this.playerWriting) return '✍️ YOU are the Writer!';
@@ -123,7 +142,7 @@ export class WriterSystem {
         return;
       }
       if (this.playerWriting) {
-        this.game.ui.setWriterTime(this.writeT, this.writeT / WRITE_TIME);
+        this.game.ui.setWriterTime(this.writeT, this.writeT / this.writeTime);
         if (this.writeT <= 0) {
           const typed = document.getElementById('writer-input').value.trim();
           const ok = typed.replace(/\s/g, '').length >= 2 && isWordAllowed(typed);
@@ -142,25 +161,27 @@ export class WriterSystem {
     const living = g.livingCharacters();
     if (!living.length) return;
     const humans = living.filter((c) => c.isPlayer || c.remote);
-    if (this.turns > 0) for (const h of humans) g.giveCoins(h, 5, 'Survived a hazard!');
+    if (this.turns > 0) for (const h of humans) { g.giveCoins(h, 5, 'Survived a hazard!'); g.trackFor(h, 'survive'); }
     this.turns++;
-    // humans get a fair (slightly boosted) shot at writing
+    // humans get a fair (slightly boosted) shot at writing (in Sandbox you write whenever you like, so bots take the turns)
     let w;
-    if (humans.length && Math.random() < Math.min(0.75, humans.length * Math.max(1 / living.length, 0.18))) w = pick(humans); // keep in sync with writerChance()
+    if (g.modeCfg.sandbox) w = pick(living.filter((c) => c.isBot));
+    else if (humans.length && Math.random() < Math.min(0.75, humans.length * Math.max(1 / living.length, 0.18))) w = pick(humans); // keep in sync with writerChance()
     else w = pick(living.filter((c) => c.isBot)) || pick(living);
+    if (!w) { this.timer = this.interval; this.phase = 'waiting'; return; }
     this.writer = w;
     this.phase = 'writing';
     this.elapsed = 0;
     g.audio.writerTurn();
     if (w.isPlayer) {
       this.playerWriting = true;
-      this.writeT = WRITE_TIME;
+      this.writeT = this.writeTime;
       g.ui.openWriter((word) => this.playerSubmit(word));
       g.ui.announce('✍️ You are the', 'WRITER!', 'Type a word. It will come to life!', '#7dffb0');
     } else if (w.remote) {
       this.playerWriting = false;
       this.remoteWriting = true;
-      this.writeT = WRITE_TIME;
+      this.writeT = this.writeTime;
       g.net.sendDirect(w.clientId, 'wopen');
       w.mesh.add(this.bubble);
     } else {
@@ -215,6 +236,7 @@ export class WriterSystem {
     if (!h) return;
     this.lastSpawn = h;
     g.announceWord(this.writer, h);
+    if (this.writer.isPlayer || this.writer.remote) g.trackFor(this.writer, 'write');
   }
 }
 

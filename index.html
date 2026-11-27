@@ -21,10 +21,13 @@
       <p class="tagline">Every 15 seconds someone writes a word. That word comes to life. Survive the chaos!</p>
       <div class="coins-big">🪙 <span id="lobby-coins">0</span></div>
       <div class="lobby-stats" id="lobby-stats"></div>
+      <div id="lobby-level" class="level-wrap"></div>
+      <div id="mode-picker" class="mode-picker"></div>
       <div class="lobby-buttons">
         <button id="btn-play" class="btn btn-play">▶ PLAY</button>
         <button id="btn-online" class="btn btn-online">🌐 Play with friends</button>
         <button id="btn-shop" class="btn btn-shop">🛍️ Shop</button>
+        <button id="btn-quests" class="btn btn-quests">📋 Quests</button>
         <button id="btn-index" class="btn">📖 Word Index</button>
         <button id="btn-help" class="btn">❓ How to play</button>
         <button id="btn-mute" class="btn btn-small">🔊</button>
@@ -66,6 +69,7 @@
       <div id="room-link" class="room-link"></div>
       <ul id="room-players" class="room-players"></ul>
       <div id="room-bots" class="lobby-stats"></div>
+      <div id="room-mode" class="mode-picker"></div>
       <div class="lobby-buttons">
         <button id="room-start" class="btn btn-play">▶ START ROUND</button>
         <div id="room-wait" class="room-wait">Waiting for the host to start the round...</div>
@@ -85,6 +89,33 @@
       <div id="shop-tabs" class="shop-tabs"></div>
       <div id="shop-grid" class="shop-grid"></div>
       <p id="shop-msg"></p>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="screen modal hidden">
+    <div class="modal-card pause-card">
+      <h2>⏸ Paused</h2>
+      <div class="lobby-buttons">
+        <button id="pause-resume" class="btn btn-play">▶ Resume</button>
+        <button id="pause-mute" class="btn">🔊</button>
+        <button id="pause-quit" class="btn">🏠 Quit to lobby</button>
+      </div>
+      <div class="pause-keys">P / Esc pause · 1–4 emotes · T write (Sandbox)</div>
+      <div id="pause-quests" class="quest-list"></div>
+    </div>
+  </div>
+
+  <!-- Quests -->
+  <div id="quests" class="screen modal hidden">
+    <div class="modal-card quests-card">
+      <div class="modal-head">
+        <h2>📋 Daily Quests</h2>
+        <button class="btn btn-small" data-close="quests">✕</button>
+      </div>
+      <div id="quest-level" class="level-wrap dark"></div>
+      <div id="quest-list" class="quest-list"></div>
+      <p class="quest-note">New quests every day. Quests count in Classic and Chaos (not Sandbox).</p>
     </div>
   </div>
 
@@ -123,6 +154,17 @@
     <div class="hud-tl">
       <div class="hp-wrap"><div id="hp-bar"><div id="hp-fill"></div><div id="shield-fill"></div></div><span id="hp-text">100</span></div>
       <div class="hud-row"><span id="hud-coins">🪙 0</span><span id="hud-effects"></span></div>
+      <div class="hud-buttons">
+        <button id="btn-pause" class="btn btn-small" title="Pause (P / Esc)">⏸</button>
+        <button id="btn-write" class="btn btn-small hidden" title="Write a word (T)">✍️ Write</button>
+        <button id="btn-emote" class="btn btn-small" title="Emotes (1-4)">😀</button>
+        <div id="emote-menu" class="emote-menu hidden">
+          <button class="btn btn-small" data-emote="1" title="1">👋</button>
+          <button class="btn btn-small" data-emote="2" title="2">💃</button>
+          <button class="btn btn-small" data-emote="3" title="3">💪</button>
+          <button class="btn btn-small" data-emote="4" title="4">🌀</button>
+        </div>
+      </div>
     </div>
     <div class="hud-tc">
       <div id="alive">👥 12 alive</div>
@@ -153,7 +195,7 @@
   <!-- Writer box -->
   <div id="writer" class="hidden">
     <div class="writer-card">
-      <div class="writer-title">✍️ YOU ARE THE WRITER! <span id="writer-time">10</span></div>
+      <div class="writer-title"><span id="writer-heading">✍️ YOU ARE THE WRITER!</span> <span id="writer-time">10</span><button id="writer-close" class="btn btn-small hidden" type="button">✕</button></div>
       <div class="writer-timer"><div id="writer-timer-fill"></div></div>
       <form id="writer-form" autocomplete="off">
         <input id="writer-input" maxlength="20" placeholder="1 or 2 words... (giant pizza? fire ninja?)" spellcheck="false" />

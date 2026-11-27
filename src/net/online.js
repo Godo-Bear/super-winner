@@ -76,6 +76,7 @@ export class Online {
     if (!this.conn) throw lastErr;
     this.role = 'host';
     this.myName = name;
+    if (!this.game.modeCfg.online) this.game.gameMode = 'classic'; // Sandbox is single player only
     this.players = [{ id: this.conn.id, name, host: true }];
     this.knockedOut = new Set(); // player ids out of the current round: they can't rejoin until it ends
     this.encoder = new SceneEncoder(this.game.hazardRoot);
@@ -179,7 +180,7 @@ export class Online {
 
   broadcastRoom(extra = {}) {
     if (!this.isHost) return;
-    this.conn.sendTo('all', { t: 'room', code: this.code, players: this.players, playing: this.game.state !== 'lobby', ...extra });
+    this.conn.sendTo('all', { t: 'room', code: this.code, players: this.players, playing: this.game.state !== 'lobby', mode: this.game.gameMode, ...extra });
     this.game.ui.showRoom();
   }
 
@@ -248,6 +249,7 @@ export class Online {
     const g = this.game;
     return {
       t: 'start',
+      mode: this.game.gameMode,
       roster: g.characters.map((c) => ({
         id: c.id, name: c.name, colors: c.colors,
         cid: c.isPlayer ? this.conn.id : c.remote ? c.clientId : null,
@@ -303,6 +305,8 @@ export class Online {
         c.yaw = +n.y || 0;
         c.onGround = !!n.g;
         c.input.jumpHeld = !!n.j;
+        const em = Number(n.em) || 0;
+        if (em !== (c.emoteId || 0)) { c.emoteId = em >= 0 && em <= 4 ? em : 0; c.emoteT = 0; }
         c.netIn = null;
       }
       (c.basePos ||= new THREE.Vector3()).copy(c.pos);
@@ -337,7 +341,7 @@ export class Online {
       ch: g.characters.map((c) => [
         c.id, R2(c.pos.x), R2(c.pos.y), R2(c.pos.z), R2(c.yaw), Math.max(0, Math.ceil(c.hp)), c.alive ? 1 : 0,
         (c.onGround ? 1 : 0) | (c.tripped > 0 ? 2 : 0) | (c.jetpack > 0 && c.input.jumpHeld ? 4 : 0) | (c.shield > 0 ? 8 : 0) | (c.hurtFlash > 0 ? 16 : 0),
-        R2(c.mods.sink), R2(c.vel.x), R2(c.vel.z),
+        R2(c.mods.sink), R2(c.vel.x), R2(c.vel.z), c.emoteId || 0,
       ]),
       env: [R2(e.friction), R2(e.speedMul), R2(e.windX), R2(e.windZ), Math.round(e.fogFar), Math.round(e.fogNear), hex(e.fogColor), hex(e.skyTint), R2(e.light), hex(e.groundTint), R2(e.gravityMul)],
       hud: {
@@ -394,6 +398,7 @@ export class Online {
         this.code = m.code;
         this.players = m.players;
         this.playing = m.playing;
+        if (m.mode) this.game.gameMode = m.mode;
         if (m.aborted && this.inRound) {
           this.inRound = false;
           g.toLobby();
@@ -422,6 +427,7 @@ export class Online {
     this.prevSnap = null;
     this.env = null;
     this.hud = null;
+    if (m.mode) g.gameMode = m.mode;
     g.applyRoster(m.roster, this.conn.id);
     g.clientRoundStarted();
   }
@@ -454,6 +460,8 @@ export class Online {
       c.hurtFlash = f & 16 ? 0.25 : Math.min(c.hurtFlash, 0.1);
       c.mods.sink = row[8];
       c.vel.set(row[9], 0, row[10]);
+      const em = row[11] || 0;
+      if (em !== (c.emoteId || 0)) { c.emoteId = em; c.emoteT = 0; }
       if (f & 4 && Math.random() < 0.5) g.particles.emit({ x: c.pos.x, y: c.pos.y + 0.8, z: c.pos.z, color: [0xffa31a, 0xffe066], count: 2, speed: 2, size: 0.25, life: 0.4, gravity: -2 });
     }
     this.snapTime = now;
@@ -515,7 +523,8 @@ export class Online {
     const g = this.game;
     switch (e[0]) {
       case 'toast': g.ui.toast(e[1]); if (e[2]) g.audio[e[2]]?.(); break;
-      case 'coins': g.addCoins(e[1], e[2]); break;
+      case 'coins': g.addCoins(e[1], e[2], e[3] || null); break;
+      case 'track': g.track(e[1], e[2]); break;
       case 'hurt':
         g.ui.hurt(e[1]);
         if (e[1] > 3) g.audio.hurt();
@@ -589,7 +598,7 @@ export class Online {
         t: 'in',
         p: [R2(me.pos.x), R2(me.pos.y), R2(me.pos.z)],
         v: [R2(me.vel.x), R2(me.vel.y), R2(me.vel.z)],
-        y: R2(me.yaw), g: me.onGround ? 1 : 0, j: me.input.jumpHeld ? 1 : 0,
+        y: R2(me.yaw), g: me.onGround ? 1 : 0, j: me.input.jumpHeld ? 1 : 0, em: me.emoteId || 0,
       });
     }
   }

@@ -23,6 +23,9 @@ import { UI, esc } from './ui.js';
 import { Online } from './net/online.js';
 import { loadSave, writeSave } from './save.js';
 import { lookFromSave } from './shop.js';
+import { MODES, modeOf } from './modes.js';
+import { ensureQuests, trackProgress, questInfo } from './progress.js';
+import { Collectibles } from './collectibles.js';
 import * as words from './words.js';
 import { clamp, pick, rand } from './utils.js';
 
@@ -75,6 +78,10 @@ export class Game {
     this.controller = new PlayerController(this);
     this.ui = new UI(this);
     this.net = new Online(this);
+    this.collectibles = new Collectibles(this);
+    this.gameMode = modeOf(this.save.mode) === MODES[this.save.mode] ? this.save.mode : 'classic';
+    this.paused = false;
+    ensureQuests(this.save);
     this.botNotices = botNotices;
 
     this.env = {};
@@ -242,6 +249,51 @@ export class Game {
     else this.player.setLook(look);
   }
 
+  get modeCfg() { return modeOf(this.gameMode); }
+
+  /** Choose Classic / Chaos / Sandbox (online rooms can't use Sandbox). */
+  setGameMode(id) {
+    if (!MODES[id] || (this.net.active && !MODES[id].online)) return;
+    this.gameMode = id;
+    this.save.mode = id;
+    writeSave(this.save);
+    if (this.net.isHost) this.net.broadcastRoom();
+  }
+
+  // ---------------- Pause (single player only) ----------------
+  get canPause() { return this.mode === 'solo' && (this.state === 'playing' || this.state === 'ending'); }
+
+  setPaused(on) {
+    if (on && !this.canPause) return;
+    if (this.paused === on) return;
+    this.paused = on;
+    if (on) { this.controller.releasePointer(); this.controller.keys.clear(); }
+    this.ui.showPause(on);
+  }
+
+  // ---------------- Quests & levels ----------------
+  /** Count progress for the local player (ignored in Sandbox). */
+  track(kind, n = 1) {
+    if (this.modeCfg.sandbox) return;
+    const res = trackProgress(this.save, kind, n);
+    for (const q of res.completed) {
+      const info = questInfo(q);
+      this.ui.toast(`📋 Quest done: ${info.text}! +${q.reward} 🪙`);
+      this.audio.powerup();
+    }
+    for (const lv of res.levelUps) {
+      this.ui.announce('⭐ LEVEL UP ⭐', `LEVEL ${lv}`, `+${25 * lv} coins!`, '#ffd23f');
+      this.audio.win();
+    }
+  }
+
+  /** Progress for any human (online friends get it sent to their own browser). */
+  trackFor(ch, kind, n = 1) {
+    if (!ch) return;
+    if (ch.isPlayer) this.track(kind, n);
+    else if (ch.remote) this.net.sendDirect(ch.clientId, 'track', kind, n);
+  }
+
   charById(id) { return this.characters.find((c) => c.id === id) || null; }
 
   // ---------------- Round flow ----------------
@@ -264,17 +316,21 @@ export class Game {
       c.kills = 0;
     });
     this.state = 'playing';
+    this.paused = false;
     this.roundTime = 0;
     this.roundCoins = 0;
     this.spectateTarget = null;
     this.deathShown = false;
+    this.collectibles.reset();
     this.save.games++;
     writeSave(this.save);
+    for (const c of this.characters) if (c.isPlayer || c.remote) this.trackFor(c, 'play');
     this.ui.showHUD();
     this.controller.yaw = Math.atan2(this.player.pos.x, this.player.pos.z);
     this.controller.camTarget.copy(this.player.pos);
     this.writer.reset();
-    this.ui.announce('Welcome to', 'WORD STORM ISLAND', 'Survive the words. Last one standing wins!', '#7dffb0');
+    const mc = this.modeCfg;
+    this.ui.announce(`${mc.icon} ${mc.name} mode`, 'WORD STORM ISLAND', mc.sandbox ? 'Press ✍️ (or T) to write any word, any time!' : 'Survive the words. Last one standing wins!', '#7dffb0');
     this.audio.announce();
     if (this.mode === 'host') this.net.hostStarted();
   }
@@ -310,6 +366,9 @@ export class Game {
     this.hazards.clear();
     this.particles.clear();
     this.writer.cancel();
+    this.collectibles.reset();
+    this.paused = false;
+    this.ui.showPause(false);
     for (const c of this.characters) { c.alive = false; c.mesh.visible = false; }
     this.resetEnv();
     this.controller.releasePointer();
@@ -319,7 +378,7 @@ export class Game {
   }
 
   checkEnd() {
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing' || this.modeCfg.sandbox) return;
     const alive = this.characters.filter((c) => c.alive);
     if (alive.length <= 1) {
       this.state = 'ending';
@@ -332,6 +391,7 @@ export class Game {
   }
 
   announceWinner(w) {
+    if (w && w.onGround) { w.input.x = w.input.z = 0; w.vel.x = w.vel.z = 0; w.startEmote(2); }
     if (w) this.ui.announce('🏆 Winner', w.name.toUpperCase(), w.isPlayer ? 'YOU SURVIVED THE WORD STORM!' : 'Last one standing!', '#7dffb0');
   }
 
@@ -339,6 +399,7 @@ export class Game {
     this.state = 'ended';
     const w = this.winner;
     if (w && w.remote) this.giveCoins(w, 50, 'Victory!');
+    if (w && (w.isPlayer || w.remote)) this.trackFor(w, 'win');
     this.showResults(w);
     this.net.hostEnded(w);
   }
@@ -370,7 +431,9 @@ export class Game {
     this.showResults(winner);
   }
 
-  addCoins(n, reason) {
+  addCoins(n, reason, kind = null) {
+    if (this.modeCfg.sandbox) return;
+    if (kind) this.track(kind, n);
     this.save.coins += n;
     this.roundCoins += n;
     writeSave(this.save);
@@ -379,9 +442,10 @@ export class Game {
   }
 
   /** Coins for any human: local player directly, online friends via the network. */
-  giveCoins(ch, n, reason) {
-    if (ch.isPlayer) this.addCoins(n, reason);
-    else if (ch.remote) this.net.sendDirect(ch.clientId, 'coins', n, reason);
+  giveCoins(ch, n, reason, kind = null) {
+    if (this.modeCfg.sandbox) return;
+    if (ch.isPlayer) this.addCoins(n, reason, kind);
+    else if (ch.remote) this.net.sendDirect(ch.clientId, 'coins', n, reason, kind);
   }
 
   /** A personal message for one character (toast + optional sound). */
@@ -436,6 +500,7 @@ export class Game {
   /** Deal damage from a hazard. `opts.knock` = {x,y,z}, `opts.cause` = kill feed text. */
   damage(ch, amount, source = null, opts = {}) {
     if (!ch.alive || this.state === 'lobby' || this.state === 'ended' || this.mode === 'client') return 0;
+    if (ch.invincible > 0) return 0; // blessed ("god" etc.)
     if (opts.knock) ch.knock(opts.knock.x || 0, opts.knock.y || 0, opts.knock.z || 0);
     if (amount <= 0) return 0;
     if (source) ch.lastHit = { source, time: this.time };
@@ -476,6 +541,7 @@ export class Game {
 
   killCharacter(ch, cause, source) {
     if (!ch.alive || this.mode === 'client') return;
+    if (ch.invincible > 0 && cause !== 'fell off the island') return;
     ch.alive = false;
     ch.hp = 0;
     ch.mesh.visible = false;
@@ -488,11 +554,28 @@ export class Game {
     if (ch.remote) this.net.playerKnockedOut(ch);
     if (killer && killer !== ch && this.state === 'playing') {
       killer.kills = (killer.kills || 0) + 1;
-      this.giveCoins(killer, 10, `Your word got ${ch.name}!`);
+      this.giveCoins(killer, 10, `Your word got ${ch.name}!`, 'kill');
+    }
+    if (this.modeCfg.sandbox) {
+      // Sandbox: nobody is out for good — pop back in a moment later
+      ch.respawnAt = this.time + 2.5;
+      if (ch.isPlayer) this.ui.toast('🧪 Respawning...');
+      return;
     }
     if (ch.isPlayer) this.onLocalDeath();
     else if (this.spectateTarget === ch) this.cycleSpectate(1);
     this.checkEnd();
+  }
+
+  sandboxRespawns() {
+    for (const c of this.characters) {
+      if (c.alive || !c.respawnAt || this.time < c.respawnAt) continue;
+      c.respawnAt = 0;
+      const p = this.island.randomPoint(4, 18);
+      c.spawn(p.x, p.z, terrainHeight(p.x, p.z) + 3);
+      if (c.isBot) initBotAI(c);
+      this.particles.burst(p.x, terrainHeight(p.x, p.z) + 1, p.z, [0xffffff, 0x7fd4ff], 16, 5, 0.3, 0.6);
+    }
   }
 
   /** Kill-feed line + sound, written from this player's point of view. */
@@ -537,7 +620,7 @@ export class Game {
     let i = alive.indexOf(this.spectateTarget);
     i = i < 0 ? 0 : (i + dir + alive.length) % alive.length;
     this.spectateTarget = alive[i];
-    if (!this.player.alive && this.state === 'playing') this.ui.showSpectate(this.spectateTarget.name);
+    if (!this.player.alive && this.state === 'playing' && !this.modeCfg.sandbox) this.ui.showSpectate(this.spectateTarget.name);
   }
 
   addShake(amount, x, z) {
@@ -566,7 +649,7 @@ export class Game {
   /** What the HUD shows (local simulation, or the host's snapshot when we're a client). */
   /** My chance (0..1) of being picked as the next Writer, or null if I'm out. */
   myWriterChance() {
-    if (!this.player.alive) return null;
+    if (!this.player.alive || this.modeCfg.sandbox) return null;
     const living = this.characters.filter((c) => c.alive);
     const humans = living.filter((c) => c.isPlayer || c.remote || c.human).length;
     return writerChance(living.length, humans, living.length - humans);
@@ -594,7 +677,7 @@ export class Game {
       this.fpsFrames = 0; this.fpsTime = 0;
       this.adaptQuality();
     }
-    this.step(dt);
+    if (!this.paused) this.step(dt);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -623,9 +706,11 @@ export class Game {
         c.resetMods();
       }
       this.hazards.update(dt);
+      this.collectibles.update(dt);
       if (this.state === 'playing') this.writer.update(dt);
       for (const c of this.characters) c.update(dt);
       this.separateCharacters();
+      if (this.modeCfg.sandbox) this.sandboxRespawns();
       if (host) this.net.hostAfterSim();
       this.ui.updateHUD(dt);
       if (this.state === 'ending') {

@@ -45,6 +45,14 @@ export class PlayerController {
     addEventListener('touchstart', () => { this.lastTouch = performance.now(); this.setTouchMode(true); }, { capture: true, passive: true });
     addEventListener('keydown', (e) => {
       if (this.typing) return;
+      const g = this.game;
+      if (e.code === 'KeyP' || (e.code === 'Escape' && !document.pointerLockElement)) {
+        if (g.paused) g.setPaused(false); else if (g.canPause) g.setPaused(true);
+        return;
+      }
+      if (g.paused) return;
+      if (/^Digit[1-4]$/.test(e.code) && g.player.alive && (g.state === 'playing' || g.state === 'ending')) g.player.startEmote(Number(e.code.slice(5)));
+      if (e.code === 'KeyT' && g.modeCfg.sandbox && g.state === 'playing') { e.preventDefault(); g.writer.freeWrite(); return; }
       if (/^(Key[WASD]|Arrow)/.test(e.code)) this.setTouchMode(false);
       this.keys.add(e.code);
       if (e.code === 'Space') {
@@ -53,11 +61,19 @@ export class PlayerController {
       }
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
+    // Esc while the mouse is captured: the browser releases it, and we pause (single player)
+    document.addEventListener('pointerlockchange', () => {
+      if (!document.pointerLockElement) {
+        if (!this.selfRelease && this.game.canPause) this.game.setPaused(true);
+        this.selfRelease = false;
+      }
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.game.canPause) this.game.setPaused(true); });
     addEventListener('blur', () => this.keys.clear());
 
     el.addEventListener('mousedown', (e) => {
       // browsers fake a mouse click after a tap: never grab the pointer for those
-      if (this.game.state !== 'playing' || this.isTouch || performance.now() - this.lastTouch < 800) return;
+      if (this.game.state !== 'playing' || this.game.paused || this.isTouch || performance.now() - this.lastTouch < 800) return;
       this.dragging = true;
       if (!document.pointerLockElement && !this.game.writer?.playerWriting) {
         try {
@@ -166,7 +182,7 @@ export class PlayerController {
   }
 
   releasePointer() {
-    if (document.pointerLockElement) document.exitPointerLock();
+    if (document.pointerLockElement) { this.selfRelease = true; document.exitPointerLock(); }
   }
 
   /** Writes movement intent into the player character. */

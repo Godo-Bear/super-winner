@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { makeTextSprite } from '../utils.js';
+import { makeTextSprite, TOON_GRADIENT } from '../utils.js';
 
 /**
  * Generic scene replication for hazards.
@@ -15,6 +15,7 @@ import { makeTextSprite } from '../utils.js';
 
 const MATERIALS = {
   MeshLambertMaterial: THREE.MeshLambertMaterial,
+  MeshToonMaterial: THREE.MeshToonMaterial,
   MeshBasicMaterial: THREE.MeshBasicMaterial,
   MeshStandardMaterial: THREE.MeshStandardMaterial,
   LineBasicMaterial: THREE.LineBasicMaterial,
@@ -175,6 +176,7 @@ export class SceneDecoder {
     } else {
       const Cls = MATERIALS[d.ty] || THREE.MeshBasicMaterial;
       m = new Cls();
+      if (m.isMeshToonMaterial) m.gradientMap = TOON_GRADIENT;
     }
     this.applyMaterial(m, d);
     return m;

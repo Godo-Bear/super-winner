@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { boxGeo, flatMat } from './utils.js';
+import { boxGeo, flatMat, newToon } from './utils.js';
 
 /** Shared cartoon outline material (inverted hull). */
 export const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x1b1530, side: THREE.BackSide });
@@ -16,7 +16,7 @@ export function makeHumanoid({
   const mats = [];
   const mat = (c) => {
     if (!ownMaterials) return flatMat(c);
-    const m = new THREE.MeshLambertMaterial({ color: c, flatShading: true });
+    const m = newToon(c);
     mats.push(m);
     return m;
   };
@@ -44,8 +44,11 @@ export function makeHumanoid({
   body.position.y = 1.25;
   root.add(body);
   body.add(mk(0.92, 0.86, 0.5, shirtM, true));
-  const collar = mk(0.5, 0.08, 0.52, mat(shade(shirt, 0.8)));
-  collar.position.y = 0.4;
+  const stripe = mk(0.94, 0.12, 0.52, mat(new THREE.Color(shirt).lerp(new THREE.Color(0xffffff), 0.45).getHex()));
+  stripe.position.y = 0.12;
+  body.add(stripe);
+  const collar = mk(0.46, 0.1, 0.06, mat(shade(shirt, 0.75)));
+  collar.position.set(0, 0.38, 0.25);
   body.add(collar);
   const belt = mk(0.94, 0.1, 0.52, flatMat(0x2b1d14));
   belt.position.y = -0.4;
@@ -58,23 +61,42 @@ export function makeHumanoid({
   const head = mk(0.62, 0.62, 0.62, skinM, true);
   head.position.y = 2.02;
   root.add(head);
+  const faceParts = { eyes: [] };
   if (face) {
-    const white = flatMat(0xffffff), dark = flatMat(eyes);
+    const white = flatMat(0xffffff), dark = flatMat(eyes), shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
     for (const sx of [-1, 1]) {
-      const e = new THREE.Mesh(boxGeo(0.13, 0.17, 0.03), white);
-      e.position.set(0.14 * sx, 0.06, 0.315);
-      head.add(e);
-      const p = new THREE.Mesh(boxGeo(0.07, 0.11, 0.03), dark);
-      p.position.set(0.14 * sx + 0.015, 0.05, 0.325);
-      head.add(p);
-      const cheek = new THREE.Mesh(boxGeo(0.09, 0.05, 0.02), flatMat(0xff8fa3));
-      cheek.position.set(0.22 * sx, -0.08, 0.315);
+      const eye = new THREE.Group();
+      eye.position.set(0.14 * sx, 0.05, 0.312);
+      const ball = new THREE.Mesh(boxGeo(0.15, 0.19, 0.03), white);
+      const pupil = new THREE.Mesh(boxGeo(0.09, 0.13, 0.03), dark);
+      pupil.position.set(0.015 * sx, -0.01, 0.012);
+      const glint = new THREE.Mesh(boxGeo(0.035, 0.035, 0.02), shine);
+      glint.position.set(0.035 * sx, 0.035, 0.026);
+      eye.add(ball, pupil, glint);
+      head.add(eye);
+      faceParts.eyes.push(eye);
+      const brow = new THREE.Mesh(boxGeo(0.15, 0.035, 0.03), flatMat(hair !== null && hat === null ? hair : 0x3b2a20));
+      brow.position.set(0.14 * sx, 0.2, 0.314);
+      brow.rotation.z = -sx * 0.12;
+      head.add(brow);
+      faceParts[sx < 0 ? 'browL' : 'browR'] = brow;
+      const cheek = new THREE.Mesh(boxGeo(0.1, 0.05, 0.02), flatMat(0xff8fa3));
+      cheek.position.set(0.225 * sx, -0.09, 0.312);
       head.add(cheek);
     }
-    const mouth = new THREE.Mesh(boxGeo(0.16, 0.04, 0.02), dark);
-    mouth.position.set(0, -0.14, 0.315);
-    head.add(mouth);
+    // a little smile: middle + two raised corners
+    const mouth = new THREE.Group();
+    mouth.position.set(0, -0.15, 0.313);
+    const mid = new THREE.Mesh(boxGeo(0.12, 0.035, 0.02), dark);
+    mouth.add(mid);
+    for (const sx of [-1, 1]) {
+      const c = new THREE.Mesh(boxGeo(0.04, 0.035, 0.02), dark);
+      c.position.set(0.075 * sx, 0.025, 0);
+      mouth.add(c);
+    }
     mouth.userData.mouth = true;
+    head.add(mouth);
+    faceParts.mouth = mouth;
   }
   if (hat !== null) addHat(head, hatStyle || 'cap', mat(hat), mk);
   else if (hair !== null) {
@@ -97,11 +119,14 @@ export function makeHumanoid({
     const sleeve = mk(0.3, 0.38, 0.3, shirtM, true);
     sleeve.position.y = -0.16;
     pivot.add(sleeve);
-    const fore = mk(0.25, 0.36, 0.25, skinM, true);
-    fore.position.y = -0.52;
+    const cuff = mk(0.31, 0.08, 0.31, mat(new THREE.Color(shirt).lerp(new THREE.Color(0xffffff), 0.45).getHex()));
+    cuff.position.y = -0.36;
+    pivot.add(cuff);
+    const fore = mk(0.25, 0.34, 0.25, skinM, true);
+    fore.position.y = -0.54;
     pivot.add(fore);
-    const hand = mk(0.27, 0.16, 0.27, skinM);
-    hand.position.y = -0.76;
+    const hand = mk(0.3, 0.2, 0.3, skinM, true);
+    hand.position.y = -0.78;
     pivot.add(hand);
     root.add(pivot);
     return pivot;
@@ -117,14 +142,17 @@ export function makeHumanoid({
     p.position.y = -0.34;
     pivot.add(p);
     const shoe = mk(0.4, 0.16, 0.48, shoeM, true);
-    shoe.position.set(0, -0.74, 0.05);
+    shoe.position.set(0, -0.72, 0.05);
     pivot.add(shoe);
+    const sole = mk(0.42, 0.06, 0.5, flatMat(0xf5f5f5));
+    sole.position.set(0, -0.8, 0.05);
+    pivot.add(sole);
     root.add(pivot);
     return pivot;
   };
   const legL = leg(-0.22), legR = leg(0.22);
 
-  return { group, root, parts: { body, head, armL, armR, legL, legR }, materials: mats };
+  return { group, root, parts: { body, head, armL, armR, legL, legR, face: faceParts }, materials: mats };
 }
 
 /** Walk-cycle helper: phase advances with speed. */

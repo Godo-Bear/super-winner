@@ -47,6 +47,16 @@ laptops) and switch off again when you move with the keyboard.
   behaviour (chase / jump / explode / shoot), size, speed, colour and look come from a hash of the word, so the same word
   always makes the same creature. Inappropriate words are rejected by a profanity filter (see `src/filter.js`).
 * Coins (saved in `localStorage`): **+5** per hazard survived, **+10** per elimination caused by your word, **+50** for a win.
+* **Game modes** (pick in the lobby, or in an online room as the host):
+  🌪️ **Classic** (a word every 15s), 🔥 **Chaos** (every 8s, hazards return faster) and
+  🧪 **Sandbox** (single player: nobody is knocked out for good, press ✍️ or **T** to write any word whenever you like).
+* **Coins and ⭐ power-up stars** pop up around the island during rounds. Stars give speed, a jetpack, a shield or health.
+* **Daily quests** (3 new ones every day) and **levels**: earn XP by surviving, writing, winning and finishing quests;
+  each level-up pays out coins. See them under **📋 Quests** or in the pause menu.
+* **Emotes**: 1 👋 wave, 2 💃 dance, 3 💪 flex, 4 🌀 spin (or the 😀 button). Others see them online.
+* **Pause** with **P**, **Esc** or ⏸ (single player only; online games can't be paused).
+* **"god"** (or angel, invincible, superpower, miracle...) only helps the Writer: full health, a big shield and
+  10 seconds of invincibility.
 * The HUD shows **your chance to be the next Writer** (the same odds the game actually uses).
 * Spend coins in the **🛍️ Shop** on hats, shirts, pants and skin colours (real skin tones are always free). Your
   outfit shows up for everyone when you play online. Items live in `src/shop.js`, so adding one is one line.
@@ -153,6 +163,10 @@ src/
   particles.js       pooled InstancedMesh particles
   save.js            localStorage save data
   shop.js            coin shop items (data only)
+  modes.js           Classic / Chaos / Sandbox settings
+  progress.js        daily quests, XP and levels
+  collectibles.js    coins and power-up stars on the island
+  lexicon.js         the word brain (extra words, describing words, word parts)
   net/
     connection.js    WebSocket connection to the relay
     online.js        rooms, host snapshots/corrections, client prediction and interpolation

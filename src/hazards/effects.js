@@ -321,4 +321,47 @@ export class Ufo extends Hazard {
   }
 }
 
-export default { wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo };
+
+// ------------------------------------------------------------------ BLESSING ("god", "angel", "invincible"...)
+/**
+ * Only helps the Writer: full health, a big shield and a few seconds of invincibility.
+ */
+export class Blessing extends Hazard {
+  constructor(game, opts) {
+    super(game, opts);
+    this.duration = 12;
+    this.recurring = false;
+    this.icon = '😇';
+    this.hint = `😇 Only ${opts.owner ? opts.owner.name : 'the Writer'} is blessed!`;
+    this.killVerb = 'was outshone by a BLESSING';
+    const w = opts.owner;
+    this.target = w && w.alive ? w : null;
+    if (this.target) {
+      w.hp = 100;
+      w.shield = Math.max(w.shield, 100);
+      w.invincible = 10;
+      game.notify(w, '😇 BLESSED! Invincible for 10 seconds!', 'powerup');
+    }
+    this.halo = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.07, 6, 18), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
+    this.halo.rotation.x = Math.PI / 2;
+    this.track(this.halo.geometry); this.track(this.halo.material);
+    this.glow = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.06, 20), new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.45, depthWrite: false }));
+    this.track(this.glow.geometry); this.track(this.glow.material);
+    this.group.add(this.halo, this.glow);
+    this.audio.tone({ freq: 523, type: 'triangle', dur: 0.5, vol: 0.15 });
+    this.audio.tone({ freq: 784, type: 'triangle', dur: 0.8, vol: 0.15, delay: 0.15 });
+  }
+
+  update() {
+    const w = this.target;
+    const on = w && w.alive && (w.invincible || 0) > 0;
+    this.halo.visible = this.glow.visible = !!on;
+    if (!on) { if (this.t > 1) this.done = true; return; }
+    this.halo.position.set(w.pos.x, w.pos.y + 2.75, w.pos.z);
+    this.glow.position.set(w.pos.x, w.pos.y + 0.05, w.pos.z);
+    this.glow.scale.setScalar(1 + Math.sin(this.t * 6) * 0.1);
+    if (Math.random() < 0.5) this.particles.emit({ x: w.pos.x, y: w.pos.y + 1.2, z: w.pos.z, color: [0xffe066, 0xffffff], count: 1, speed: 1.5, up: 2, size: 0.18, life: 0.7, gravity: -1, spread: 0.6 });
+  }
+}
+
+export default { wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };

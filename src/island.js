@@ -160,8 +160,14 @@ export class Island {
     this.group.add(block(0.7, 1.8, 0.7, 0x8d6e63, s.x - 1.2, top + 1.4, s.z - 1.1));
     this.group.add(block(0.9, 0.2, 0.9, 0x6d4c41, s.x - 1.2, top + 2.35, s.z - 1.1));
     this.chimney = { x: s.x - 1.2, y: top + 2.5, z: s.z - 1.1 };
-    // lantern by the door
-    this.group.add(block(0.25, 0.35, 0.25, 0xffe066, s.x + s.hx + 0.12, 2.5, s.z + 1.45, false));
+    // glowing lanterns by the door
+    const glow = new THREE.MeshBasicMaterial({ color: 0xffe9a0 });
+    for (const dz of [-1.45, 1.45]) {
+      this.group.add(block(0.32, 0.42, 0.32, 0x2b1d14, s.x + s.hx + 0.14, 2.5, s.z + dz, false));
+      this.group.add(block(0.24, 0.3, 0.34, glow, s.x + s.hx + 0.14, 2.5, s.z + dz, false));
+    }
+    // roof trim
+    this.group.add(block(s.hx * 2 + 0.6, 0.22, s.hz * 2 + 0.6, 0x7a4f2a, s.x, top + 0.05, s.z));
     // stepping-stone path toward the middle of the island
     for (let i = 0; i < 7; i++) {
       const k = (i + 1) / 8;

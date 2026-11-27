@@ -44,7 +44,7 @@ const T = {
   car: { hazard: 'vehicle', kind: 'car', speed: 24, lanes: 4, damage: 40 },
   // effects (hazards/effects.js) — no extra settings needed
   wind: { hazard: 'wind' }, lowgravity: { hazard: 'lowgravity' }, darkness: { hazard: 'darkness' }, magnet: { hazard: 'magnet' },
-  gas: { hazard: 'gas' }, disco: { hazard: 'disco' }, slowmo: { hazard: 'slowmo' }, ufo: { hazard: 'ufo' },
+  gas: { hazard: 'gas' }, disco: { hazard: 'disco' }, slowmo: { hazard: 'slowmo' }, ufo: { hazard: 'ufo' }, blessing: { hazard: 'blessing' },
   // reuse a hand-made dictionary hazard
 };
 
@@ -256,6 +256,8 @@ const LEX = [
   [['party', 'disco', 'dance', 'dancing', 'music', 'song', 'rave', 'concert', 'rainbow'], '🪩', 'disco'],
   [['slow', 'slowmo', 'slow motion', 'time', 'sleep', 'sleepy', 'lazy', 'tired', 'boring'], '🐌', 'slowmo'],
   [['ufo', 'ufos', 'spaceship', 'flying saucer', 'abduction'], '🛸', 'ufo'],
+  // only helps the Writer
+  [['god', 'gods', 'goddess', 'angel', 'angels', 'immortal', 'invincible', 'superpower', 'superpowers', 'blessing', 'blessed', 'miracle', 'holy', 'heaven', 'divine', 'godmode', 'god mode'], '😇', 'blessing'],
 ];
 
 // ---------- describing words (first word of a 2-word phrase) ----------

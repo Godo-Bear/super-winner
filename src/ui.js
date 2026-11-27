@@ -3,6 +3,8 @@ import { describe, suggestExtra, interpret, EXTRA_WORD_COUNT } from './lexicon.j
 import { DEFAULT_RELAY } from './net/connection.js';
 import { ITEMS, SLOTS, isOwned, buy, DEFAULT_EQUIPPED } from './shop.js';
 import { writeSave } from './save.js';
+import { MODES } from './modes.js';
+import { ensureQuests, questInfo, xpForLevel } from './progress.js';
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -51,6 +53,76 @@ export class UI {
     this.bindWriter();
     this.bindOnline();
     this.bindShop();
+    this.bindPlayExtras();
+  }
+
+  // ---------------- Modes, quests, pause, emotes ----------------
+  bindPlayExtras() {
+    const g = this.game;
+    const pickMode = (e) => {
+      const b = e.target.closest('[data-mode]');
+      if (!b) return;
+      g.setGameMode(b.dataset.mode);
+      g.audio.unlock(); g.audio.pop();
+      this.renderModes();
+    };
+    $('mode-picker').addEventListener('click', pickMode);
+    $('room-mode').addEventListener('click', pickMode);
+    $('btn-quests').addEventListener('click', () => { this.renderQuests(); $('quests').classList.remove('hidden'); });
+    $('btn-pause').addEventListener('click', () => g.setPaused(true));
+    $('pause-resume').addEventListener('click', () => g.setPaused(false));
+    $('pause-quit').addEventListener('click', () => { g.setPaused(false); g.toLobby(); });
+    $('pause-mute').addEventListener('click', () => { g.audio.setMuted(!g.audio.muted); this.refreshMute(); });
+    $('btn-write').addEventListener('click', () => g.writer.freeWrite());
+    $('btn-emote').addEventListener('click', () => $('emote-menu').classList.toggle('hidden'));
+    $('emote-menu').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-emote]');
+      if (!b) return;
+      g.player.startEmote(Number(b.dataset.emote));
+      $('emote-menu').classList.add('hidden');
+    });
+    $('writer-close').addEventListener('click', () => { this.closeWriter(); g.writer.freeWriting = false; });
+  }
+
+  renderModes() {
+    const g = this.game;
+    const online = g.net.active;
+    const html = Object.entries(MODES)
+      .filter(([, m]) => !online || m.online)
+      .map(([id, m]) => `<button class="mode ${g.gameMode === id ? 'on' : ''}" data-mode="${id}" title="${esc(m.desc)}"><b>${m.icon} ${esc(m.name)}</b><small>${esc(m.desc)}</small></button>`).join('');
+    $('mode-picker').innerHTML = html;
+    if (online && !g.net.isHost) {
+      const m = MODES[g.gameMode] || MODES.classic;
+      $('room-mode').innerHTML = `<div class="mode on static"><b>${m.icon} ${esc(m.name)}</b><small>${esc(m.desc)}</small></div>`;
+    } else $('room-mode').innerHTML = html;
+  }
+
+  levelHtml() {
+    const s = this.game.save;
+    const need = xpForLevel(s.level || 1);
+    const pct = Math.min(100, ((s.xp || 0) / need) * 100);
+    return `<b>⭐ Level ${s.level || 1}</b><div class="xp-bar"><div style="width:${pct}%"></div></div><small>${s.xp || 0} / ${need} XP</small>`;
+  }
+
+  questsHtml() {
+    const qs = ensureQuests(this.game.save);
+    return qs.map((q) => {
+      const info = questInfo(q);
+      const pct = Math.min(100, (q.progress / q.goal) * 100);
+      return `<div class="quest ${q.done ? 'done' : ''}"><span class="qi">${q.done ? '✅' : info.icon}</span><div class="qt"><b>${esc(info.text)}</b>
+        <div class="xp-bar"><div style="width:${pct}%"></div></div><small>${q.progress}/${q.goal} · reward 🪙 ${q.reward}</small></div></div>`;
+    }).join('');
+  }
+
+  renderQuests() {
+    $('quest-level').innerHTML = this.levelHtml();
+    $('quest-list').innerHTML = this.questsHtml();
+  }
+
+  showPause(on) {
+    $('pause').classList.toggle('hidden', !on);
+    if (on) { $('pause-quests').innerHTML = this.questsHtml(); $('pause-mute').textContent = this.game.audio.muted ? '🔇' : '🔊'; }
+    this.refreshTouch();
   }
 
   // ---------------- Coin shop ----------------
@@ -199,6 +271,7 @@ export class UI {
     const bots = Math.max(0, 12 - net.players.length);
     $('room-bots').textContent = bots ? `+ ${bots} bot${bots > 1 ? 's' : ''} will fill the island` : 'Full island!';
     $('room-start').classList.toggle('hidden', !net.isHost);
+    this.renderModes();
     $('room-wait').classList.toggle('hidden', net.isHost);
     const playing = net.isClient && net.playing;
     $('room-wait').textContent = playing ? 'A round is in progress... you will join the next one.' : 'Waiting for the host to start the round...';
@@ -239,6 +312,8 @@ export class UI {
     const total = this.game.dictionaryCount ?? 0;
     $('lobby-stats').textContent = `🏆 ${s.wins} wins · 🎮 ${s.games} games · 📖 ${s.discovered.length}/${total} words discovered`;
     $('lobby').classList.remove('hidden');
+    $('lobby-level').innerHTML = this.levelHtml();
+    this.renderModes();
     $('hud').classList.add('hidden');
     $('results').classList.add('hidden');
     $('touch').classList.add('hidden');
@@ -310,6 +385,8 @@ export class UI {
     $('hud-effects').textContent = fx.join(' ');
     const alive = g.characters.filter((c) => c.alive).length;
     $('alive').textContent = `👥 ${alive} alive`;
+    $('btn-write').classList.toggle('hidden', !g.modeCfg.sandbox || g.mode === 'client');
+    $('btn-pause').classList.toggle('hidden', !g.canPause);
     const data = g.hudData();
     $('writer-status').textContent = data.writer;
     const ch = $('writer-chance');
@@ -483,9 +560,13 @@ export class UI {
     $('writer-suggest').innerHTML = html;
   }
 
-  openWriter(onSubmit) {
+  openWriter(onSubmit, { noTimer = false } = {}) {
     this.onWriterSubmit = onSubmit;
     $('writer').classList.remove('hidden');
+    $('writer-heading').textContent = noTimer ? '🧪 WRITE ANY WORD' : '✍️ YOU ARE THE WRITER!';
+    $('writer-time').classList.toggle('hidden', noTimer);
+    $('writer-close').classList.toggle('hidden', !noTimer);
+    document.querySelector('.writer-timer').classList.toggle('hidden', noTimer);
     const input = $('writer-input');
     input.value = '';
     this.sugIndex = 0;

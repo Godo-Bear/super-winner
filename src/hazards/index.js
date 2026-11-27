@@ -99,7 +99,8 @@ export class HazardManager {
       this.list[i] = n;
       this.game.feed(`🔁 ${n.icon} <b>${n.label.toUpperCase()}</b> strikes again!`);
     } else if (h.recurring && playing) {
-      const d = RECUR_DELAY[0] + Math.random() * (RECUR_DELAY[1] - RECUR_DELAY[0]);
+      const rd = this.game.modeCfg?.recharge || RECUR_DELAY;
+      const d = rd[0] + Math.random() * (rd[1] - rd[0]);
       this.list[i] = new Recharging(h, d);
     } else this.list.splice(i, 1);
   }

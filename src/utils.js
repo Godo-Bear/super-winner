@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export const rand = (a, b) => a + Math.random() * (b - a);
 export const randInt = (a, b) => Math.floor(rand(a, b + 1));
@@ -82,28 +83,49 @@ export function makeTextSprite(text, { color = '#ffffff', stroke = '#1b1530', fo
   return sprite;
 }
 
-/** Cache of box geometries keyed by size so hundreds of blocks share buffers. */
+/**
+ * Cartoon (cel) shading ramp shared by every toon material: 4 bold light bands.
+ */
+export const TOON_GRADIENT = (() => {
+  const t = new THREE.DataTexture(new Uint8Array([120, 175, 225, 255]), 4, 1, THREE.RedFormat);
+  t.minFilter = t.magFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
+})();
+
+/** A new cartoon material (use toonMat() for the shared cached version). */
+export function newToon(color, extra = {}) {
+  return new THREE.MeshToonMaterial({ color, gradientMap: TOON_GRADIENT, ...extra });
+}
+
+/**
+ * Cache of box geometries keyed by size so hundreds of blocks share buffers.
+ * Boxes get softly rounded edges (toy-brick look) unless they are paper thin.
+ */
 const boxCache = new Map();
 export function boxGeo(w, h, d) {
   const key = `${w}|${h}|${d}`;
   let g = boxCache.get(key);
   if (!g) {
-    g = new THREE.BoxGeometry(w, h, d);
+    const m = Math.min(w, h, d);
+    g = m < 0.06 ? new THREE.BoxGeometry(w, h, d) : new RoundedBoxGeometry(w, h, d, 2, Math.min(0.14, m * 0.22));
     boxCache.set(key, g);
   }
   return g;
 }
 
 const matCache = new Map();
-/** Shared flat-shaded Lambert material by colour. Do not mutate the result. */
+/** Shared cartoon material by colour. Do not mutate the result. */
 export function flatMat(color) {
   let m = matCache.get(color);
   if (!m) {
-    m = new THREE.MeshLambertMaterial({ color, flatShading: true });
+    m = newToon(color);
     matCache.set(color, m);
   }
   return m;
 }
+export const toonMat = flatMat;
 
 export function block(w, h, d, color, x = 0, y = 0, z = 0, shadows = true) {
   const m = new THREE.Mesh(boxGeo(w, h, d), typeof color === 'number' ? flatMat(color) : color);
