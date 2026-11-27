@@ -2,7 +2,12 @@
 //   npm run relay            -> ws://localhost:8787
 import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
-import { Relay } from '../worker/src/relay.js';
+import { readFileSync } from 'node:fs';
+
+// Reuse the Worker's room logic. `cloudflare:workers` only exists on Cloudflare, so stub it out.
+const workerSrc = readFileSync(new URL('../worker/src/index.js', import.meta.url), 'utf8')
+  .replace(/^import \{ DurableObject \} from 'cloudflare:workers';$/m, 'class DurableObject {}');
+const { Relay } = await import(`data:text/javascript,${encodeURIComponent(workerSrc)}`);
 
 const PORT = Number(process.env.PORT || 8787);
 const rooms = new Map(); // code -> { sockets: Map<ws, meta>, relay }

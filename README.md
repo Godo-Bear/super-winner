@@ -52,14 +52,23 @@ Click **🌐 Play with friends**, pick a name, then **Create room** and share th
 **Copy invite link** button). Friends enter the code and press **Join**. The host presses **Start round**, and bots
 fill the remaining spots up to 12. Anyone who joins mid-round spectates until the next one.
 
-### 1. Deploy the relay (Cloudflare Worker)
+### Put it online (one Cloudflare Worker = the game + the multiplayer server)
 
-The `worker/` folder is a tiny Cloudflare Worker with one Durable Object per room. It only forwards messages; the
-game itself runs in the host's browser. It works on the Workers free plan.
+Deploying creates one link like `https://super-winner.<you>.workers.dev`. Send it to your friends: it opens the
+game, and **Play with friends** works right away, with no server address to type. It runs on the free Workers plan.
 
-```bash
-cd worker
-```
+**Option A: no terminal (Cloudflare dashboard)**
+
+1. Sign in at [dash.cloudflare.com](https://dash.cloudflare.com) and verify your email if asked.
+2. Go to **Workers & Pages → Create → Import a repository** and connect GitHub.
+3. Pick the `super-winner` repository. Keep the project name `super-winner` (it must match `wrangler.toml`) and leave the root directory as `/`.
+4. Set **Build command** to `npm run build` and **Deploy command** to `npx wrangler deploy`.
+5. Click **Deploy**. When it finishes, open the `workers.dev` link it shows.
+
+After that, every push to `main` redeploys automatically.
+
+**Option B: from your computer** (needs [Node.js](https://nodejs.org) 20 or newer). Run these in the project folder,
+the one that contains `package.json` and `wrangler.toml`:
 
 ```bash
 npm install
@@ -70,32 +79,34 @@ npx wrangler login
 ```
 
 ```bash
-npx wrangler deploy
+npm run deploy
 ```
 
-Wrangler prints your URL, e.g. `https://super-winner-relay.<you>.workers.dev`. Opening it in a browser should say
+Wrangler prints your link. To check the multiplayer server, open `<your link>/health`: it should say
 "Super Winner relay is running ✔".
 
-### 2. Point the game at it
+**If deploying fails:**
 
-Either type that URL into **Play with friends → Server settings** (it is remembered), or bake it into the build so
-nobody has to type it:
+| Message | Fix |
+| --- | --- |
+| `Missing entry-point` or `Could not find wrangler config` | You are in the wrong folder. `cd` into the project folder (where `wrangler.toml` is) and try again. |
+| Asks you to register a `workers.dev` subdomain | Pick any name. It only happens the first time (or open **Workers & Pages** in the dashboard once). |
+| `You need to verify your email address` | Click the link in the email from Cloudflare, then deploy again. |
+| `Not logged in` / login page never opens | Run `npx wrangler login` again. On a remote machine, create an API token in the dashboard and set `CLOUDFLARE_API_TOKEN` instead. |
+| `Unsupported Node.js version` / odd syntax errors | Install Node.js 20 or newer. |
+| `durable_objects` / `migrations` errors | Make sure you are using the `wrangler.toml` from this repo unchanged. |
 
-```bash
-cp .env.example .env
-```
+If something else goes wrong, copy the whole error message, since it says exactly what Cloudflare didn't like.
 
-Then edit `VITE_RELAY_URL` in `.env` and rebuild with `npm run build`. Host the `dist/` folder anywhere static
-(Cloudflare Pages, GitHub Pages, Netlify...). For example, with Cloudflare Pages:
-
-```bash
-npx wrangler pages deploy dist --project-name super-winner
-```
+**Hosting the game somewhere else?** If the game is on another site (e.g. GitHub Pages) but the server is your
+Worker, type the Worker link into **Play with friends → Server settings**, or set `VITE_RELAY_URL` in `.env`
+(see `.env.example`) before `npm run build`.
 
 ### Testing online play locally
 
-`npm run relay` starts the same relay on your machine (`ws://localhost:8787`). Run `npm run dev` too, open the game in
-two browser windows, and use `localhost:8787` as the server address. Friends on your Wi-Fi can use your computer's
+`npm run preview:worker` builds the game and runs the exact Cloudflare setup on your machine at
+`http://localhost:8787`: open it in two browser windows and play. Alternatively, `npm run relay` starts a lightweight
+Node relay (`ws://localhost:8787`) to use with `npm run dev`; enter `localhost:8787` as the server address. Friends on your Wi-Fi can use your computer's
 LAN IP instead (start Vite with `npx vite --host`).
 
 ### How it works
@@ -146,9 +157,9 @@ src/
     helpful.js       wall, bunker, shield, jetpack, speed, heal
     silly.js         banana, giant ball, tacos, trampoline
     mystery.js       Mystery Blob generator for unknown words
-worker/              Cloudflare Worker + Durable Object relay (deploy this for online play)
-  src/relay.js       room logic shared with the local relay
-scripts/dev-relay.mjs  local relay for testing (`npm run relay`)
+wrangler.toml        Cloudflare config: deploys the built game + the relay as one Worker
+worker/src/index.js  the Worker: serves the game, and one Durable Object per room relays messages
+scripts/dev-relay.mjs  local Node relay for testing (`npm run relay`)
 ```
 
 ## Adding new words

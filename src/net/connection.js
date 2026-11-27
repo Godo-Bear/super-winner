@@ -7,7 +7,10 @@
  *   host   → server : "<target>|<json>"  where target is "all" or a client id
  *   client → server : "<json>" (forwarded to the host as {t:'from'})
  */
-export const DEFAULT_RELAY = import.meta.env.VITE_RELAY_URL || '';
+// When the game is served by the Super Winner Worker (npm run deploy) the relay is the same site,
+// so nobody has to type a server address.
+export const DEFAULT_RELAY = import.meta.env.VITE_RELAY_URL
+  || (!import.meta.env.DEV && /^https?:$/.test(location.protocol) ? location.origin : '');
 
 export function normalizeRelayUrl(url) {
   let u = String(url || '').trim().replace(/\/+$/, '');
@@ -45,7 +48,7 @@ export class Connection {
       try { ws = new WebSocket(url); } catch { reject(new Error('Bad server address.')); return; }
       this.ws = ws;
       const timer = setTimeout(() => {
-        if (!settled) { settled = true; reject(new Error('Could not reach the server (timed out).')); try { ws.close(); } catch { /* ignore */ } }
+        if (!settled) { settled = true; reject(new Error(`Could not reach the server at ${base} (timed out). Check Server settings.`)); try { ws.close(); } catch { /* ignore */ } }
       }, 8000);
       ws.onmessage = (ev) => {
         let msg;
@@ -69,7 +72,7 @@ export class Connection {
         this.handlers.any?.(msg);
       };
       ws.onerror = () => {
-        if (!settled) { settled = true; clearTimeout(timer); reject(new Error('Could not connect to the server.')); }
+        if (!settled) { settled = true; clearTimeout(timer); reject(new Error(`Could not connect to the server at ${base}. Check Server settings.`)); }
       };
       ws.onclose = () => {
         clearTimeout(timer);
