@@ -300,6 +300,27 @@ export class UI {
     }
   }
 
+  /** Screen-edge arrow toward the Writer when they're off-screen. */
+  updateWriterPointer(w) {
+    const el = $('writer-pointer');
+    if (!w) { el.classList.add('hidden'); return; }
+    const cam = this.game.camera;
+    const v = (this._v ||= new w.pos.constructor());
+    v.set(w.pos.x, w.pos.y + 2.4, w.pos.z).project(cam);
+    let x = v.x, y = v.y;
+    const behind = v.z > 1;
+    if (behind) { x = -x; y = -y; }
+    if (!behind && Math.abs(x) < 0.92 && Math.abs(y) < 0.86) { el.classList.add('hidden'); return; }
+    // push the point onto the screen border
+    const k = 1 / Math.max(Math.abs(x) / 0.86, Math.abs(y) / 0.78, 1e-3);
+    x *= k; y *= k;
+    const px = (x * 0.5 + 0.5) * innerWidth, py = (-y * 0.5 + 0.5) * innerHeight;
+    el.classList.remove('hidden');
+    el.style.transform = `translate(${px}px, ${py}px) translate(-50%, -50%)`;
+    $('writer-pointer-arrow').style.transform = `rotate(${Math.atan2(-y, x)}rad)`;
+    if (el.dataset.name !== w.name) { el.dataset.name = w.name; $('writer-pointer-name').textContent = `✍️ ${w.name}`; }
+  }
+
   announce(by, word, hint = '', color = '#ffd23f') {
     const a = $('announce');
     $('announce-by').textContent = by;

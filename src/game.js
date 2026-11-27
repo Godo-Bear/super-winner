@@ -660,6 +660,8 @@ export class Game {
     this.shake *= Math.exp(-5 * dt);
     if (this.shake < 0.01) this.shake = 0;
 
+    const writerNow = this.writer.updateMarker(dt, this.time);
+    this.ui.updateWriterPointer(active && writerNow && writerNow !== this.player ? writerNow : null);
     this.ambient(dt);
     this.applyEnv(dt);
     this.island.update(dt, this.time);

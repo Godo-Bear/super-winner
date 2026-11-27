@@ -1,4 +1,5 @@
 import { randomBotWord } from './words.js';
+import * as THREE from 'three';
 import { makeTextSprite, rand, pick } from './utils.js';
 import { isWordAllowed } from './filter.js';
 
@@ -30,6 +31,7 @@ export class WriterSystem {
     this.game = game;
     this.bubble = makeTextSprite('typing...', { fontSize: 40, height: 0.5, color: '#1b1530', stroke: '#ffffff', bg: 'rgba(255,248,231,0.95)' });
     this.bubble.position.y = 3.6;
+    this.marker = makeWriterMarker();
     this.reset();
     this.phase = 'idle';
   }
@@ -54,7 +56,38 @@ export class WriterSystem {
     this.detachBubble();
   }
 
-  detachBubble() { if (this.bubble.parent) this.bubble.parent.remove(this.bubble); }
+  detachBubble() {
+    if (this.bubble.parent) this.bubble.parent.remove(this.bubble);
+    if (this.marker.parent) this.marker.parent.remove(this.marker);
+  }
+
+  /** Who is typing right now (any machine: host/solo from the sim, clients from the snapshot). */
+  currentWriter() {
+    const g = this.game;
+    if (g.mode === 'client') {
+      const h = g.net.hud;
+      return h && h.ph === 'writing' ? g.charById(h.wid) : null;
+    }
+    return this.phase === 'writing' ? this.writer : null;
+  }
+
+  /** Keeps the golden arrow + ring on the Writer and animates them. Called every frame. */
+  updateMarker(dt, time) {
+    const w = this.currentWriter();
+    const m = this.marker;
+    if (!w || !w.alive) {
+      if (m.parent) m.parent.remove(m);
+      return null;
+    }
+    if (m.parent !== w.mesh) w.mesh.add(m);
+    const { arrow, ring } = m.userData;
+    arrow.position.y = (this.bubble.parent === w.mesh ? 4.75 : 4.15) + Math.abs(Math.sin(time * 5)) * 0.45;
+    arrow.rotation.y += dt * 3;
+    ring.rotation.z += dt * 1.5;
+    const pulse = 1 + Math.sin(time * 6) * 0.08;
+    ring.scale.set(pulse, pulse, 1);
+    return w;
+  }
 
   get interval() { return this.turns > 8 ? LATE_INTERVAL : TURN_INTERVAL; }
 
@@ -137,6 +170,7 @@ export class WriterSystem {
     }
   }
 
+
   /** Player pressed GO: any word is allowed unless it is inappropriate. */
   playerSubmit(word) {
     const w = word.trim();
@@ -176,4 +210,30 @@ export class WriterSystem {
     this.lastSpawn = h;
     g.announceWord(this.writer, h);
   }
+}
+
+/** Big golden "this one is typing!" arrow plus a glowing ring at the feet. */
+function makeWriterMarker() {
+  const gold = new THREE.MeshBasicMaterial({ color: 0xffd23f });
+  const edge = new THREE.MeshBasicMaterial({ color: 0x1b1530, side: THREE.BackSide });
+  const g = new THREE.Group();
+  const arrow = new THREE.Group();
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.62, 4), gold);
+  head.rotation.x = Math.PI; // point down
+  head.add(new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.74, 4), edge));
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.55, 0.26), gold);
+  shaft.position.y = 0.55;
+  shaft.add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.63, 0.34), edge));
+  arrow.add(head, shaft);
+  g.add(arrow);
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.75, 1.0, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+  g.add(ring);
+  for (const o of [head, shaft, ring]) o.renderOrder = 3;
+  g.userData = { arrow, ring };
+  return g;
 }
