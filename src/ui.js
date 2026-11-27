@@ -31,6 +31,22 @@ export class UI {
     $('spec-lobby').addEventListener('click', () => game.toLobby());
     $('spec-other').addEventListener('click', () => game.net.switchRoom());
     this.refreshMute();
+    const fs = () => {
+      const d = document;
+      try {
+        if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+        else {
+          const r = (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen)?.call(d.documentElement);
+          if (r && r.catch) r.catch(() => {});
+        }
+      } catch { /* not supported (e.g. iPhone Safari) */ }
+    };
+    $('btn-fullscreen').addEventListener('click', fs);
+    $('touch-fullscreen').addEventListener('click', fs);
+    if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
+      $('btn-fullscreen').classList.add('hidden');
+      $('touch-fullscreen').classList.add('hidden');
+    }
     this.bindWriter();
     this.bindOnline();
     this.bindShop();
@@ -194,6 +210,15 @@ export class UI {
     this.onlineStatus(text, true);
   }
 
+  /** Show the on-screen joystick/buttons while playing in touch mode. */
+  refreshTouch() {
+    const g = this.game;
+    const playing = (g.state === 'playing' || g.state === 'ending') && !$('hud').classList.contains('hidden');
+    const show = g.controller.isTouch && playing && g.player.alive;
+    $('touch').classList.toggle('hidden', !show);
+    document.body.classList.toggle('touch-mode', g.controller.isTouch);
+  }
+
   refreshMute() { $('btn-mute').textContent = this.game.audio.muted ? '🔇' : '🔊'; }
 
   // ---------------- Lobby ----------------
@@ -232,7 +257,7 @@ export class UI {
     $('spectate').classList.add('hidden');
     $('killfeed').innerHTML = '';
     $('toasts').innerHTML = '';
-    if (this.game.controller.isTouch) $('touch').classList.remove('hidden');
+    this.refreshTouch();
     this.lastHazardKey = '';
   }
 
@@ -284,7 +309,7 @@ export class UI {
     $('writer-status').textContent = data.writer;
     const ch = $('writer-chance');
     if (data.chance === null || data.chance === undefined) ch.textContent = '';
-    else ch.textContent = `🎲 Your chance to be the next Writer: ${Math.round(data.chance * 100)}%`;
+    else ch.textContent = `🎲 ${innerWidth < 700 ? 'Writer chance' : 'Your chance to be the next Writer'}: ${Math.round(data.chance * 100)}%`;
 
     const hz = data.hazards;
     $('hazard-count').textContent = `${hz.length}/${g.hazards.max}`;

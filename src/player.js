@@ -19,8 +19,20 @@ export class PlayerController {
     this.touchJumpHeld = false;
     this.lookTouch = null;
     this.dragging = false;
-    this.isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    this.isTouch = matchMedia('(pointer: coarse)').matches;
+    this.lastTouch = -1e9;
     this.bind();
+  }
+
+  /**
+   * Touch mode turns on the moment the screen is touched (phones, tablets, touch laptops)
+   * and off again when the keyboard is used for moving.
+   */
+  setTouchMode(on) {
+    if (this.isTouch === on) return;
+    this.isTouch = on;
+    if (on) this.releasePointer();
+    this.game.ui.refreshTouch();
   }
 
   get typing() {
@@ -30,8 +42,10 @@ export class PlayerController {
 
   bind() {
     const el = this.game.renderer.domElement;
+    addEventListener('touchstart', () => { this.lastTouch = performance.now(); this.setTouchMode(true); }, { capture: true, passive: true });
     addEventListener('keydown', (e) => {
       if (this.typing) return;
+      if (/^(Key[WASD]|Arrow)/.test(e.code)) this.setTouchMode(false);
       this.keys.add(e.code);
       if (e.code === 'Space') {
         e.preventDefault();
@@ -42,7 +56,8 @@ export class PlayerController {
     addEventListener('blur', () => this.keys.clear());
 
     el.addEventListener('mousedown', (e) => {
-      if (this.game.state !== 'playing' || this.isTouch) return;
+      // browsers fake a mouse click after a tap: never grab the pointer for those
+      if (this.game.state !== 'playing' || this.isTouch || performance.now() - this.lastTouch < 800) return;
       this.dragging = true;
       if (!document.pointerLockElement && !this.game.writer?.playerWriting) {
         try {
@@ -53,6 +68,7 @@ export class PlayerController {
     });
     addEventListener('mouseup', () => (this.dragging = false));
     addEventListener('mousemove', (e) => {
+      if (performance.now() - this.lastTouch < 800) return;
       if (document.pointerLockElement === el || this.dragging) this.look(e.movementX, e.movementY, 0.0028);
     });
     el.addEventListener('wheel', (e) => {
@@ -62,19 +78,35 @@ export class PlayerController {
 
     // ----- touch: camera drag on the canvas -----
     el.addEventListener('touchstart', (e) => {
-      for (const t of e.changedTouches) if (this.lookTouch === null) this.lookTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
+      for (const t of e.changedTouches) {
+        if (this.lookTouch === null) this.lookTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
+        else if (!this.pinch) this.pinch = { id: t.identifier, d: 0, x: t.clientX, y: t.clientY };
+      }
     }, { passive: true });
     el.addEventListener('touchmove', (e) => {
       for (const t of e.changedTouches) {
         if (this.lookTouch && t.identifier === this.lookTouch.id) {
-          this.look(t.clientX - this.lookTouch.x, t.clientY - this.lookTouch.y, 0.006);
+          if (!this.pinch) this.look(t.clientX - this.lookTouch.x, t.clientY - this.lookTouch.y, 0.007);
           this.lookTouch.x = t.clientX;
           this.lookTouch.y = t.clientY;
+        } else if (this.pinch && t.identifier === this.pinch.id) {
+          this.pinch.x = t.clientX;
+          this.pinch.y = t.clientY;
         }
+      }
+      if (this.pinch && this.lookTouch) {
+        // two fingers on the view: pinch to zoom the camera
+        const d = Math.hypot(this.pinch.x - this.lookTouch.x, this.pinch.y - this.lookTouch.y);
+        if (this.pinch.d) this.dist = clamp(this.dist - (d - this.pinch.d) * 0.03, 5, 18);
+        this.pinch.d = d;
       }
     }, { passive: true });
     const endLook = (e) => {
-      for (const t of e.changedTouches) if (this.lookTouch && t.identifier === this.lookTouch.id) this.lookTouch = null;
+      for (const t of e.changedTouches) {
+        if (this.lookTouch && t.identifier === this.lookTouch.id) this.lookTouch = null;
+        if (this.pinch && t.identifier === this.pinch.id) this.pinch = null;
+      }
+      if (!this.lookTouch && this.pinch) { this.lookTouch = { id: this.pinch.id, x: this.pinch.x, y: this.pinch.y }; this.pinch = null; }
     };
     el.addEventListener('touchend', endLook);
     el.addEventListener('touchcancel', endLook);
@@ -152,7 +184,8 @@ export class PlayerController {
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     ch.input.x = -sy * f + cy * r;
     ch.input.z = -cy * f - sy * r;
-    ch.input.sprint = k.has('ShiftLeft') || k.has('ShiftRight') || this.touchSprint;
+    const joyFull = Math.hypot(this.joy.x, this.joy.y) > 0.92;
+    ch.input.sprint = k.has('ShiftLeft') || k.has('ShiftRight') || this.touchSprint || joyFull;
     if (this.jumpPressed) ch.input.jump = true;
     this.jumpPressed = false;
     ch.input.jumpHeld = (!this.typing && k.has('Space')) || this.touchJumpHeld;

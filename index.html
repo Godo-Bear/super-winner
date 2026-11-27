@@ -28,6 +28,7 @@
         <button id="btn-index" class="btn">📖 Word Index</button>
         <button id="btn-help" class="btn">❓ How to play</button>
         <button id="btn-mute" class="btn btn-small">🔊</button>
+        <button id="btn-fullscreen" class="btn btn-small" title="Fullscreen">⛶</button>
       </div>
     </div>
   </div>
@@ -107,6 +108,7 @@
       </div>
       <ul>
         <li><b>WASD</b> move · <b>Space</b> jump · <b>Shift</b> sprint · <b>Mouse</b> orbit camera (click to lock, Esc to release)</li>
+        <li>📱 <b>Touch:</b> joystick on the left (push it all the way to run) · <b>JUMP</b> button (hold it with a jetpack to fly) · drag the right side to look · pinch to zoom · tap the word suggestions when you're the Writer</li>
         <li>Every 15s a random survivor becomes the <b>Writer</b>. Their word becomes a hazard. Hazards stack!</li>
         <li>Every hazard warns you first: <span class="red">red circles</span>, shadows, sirens and wind-ups. Something always lets you survive.</li>
         <li>☢️ Nukes: hide in the <b>hut</b>. 🌊 Tsunamis: climb the <b>hill</b>. 🔴 Lasers: <b>jump</b>.</li>
@@ -173,8 +175,10 @@
   <!-- Mobile controls -->
   <div id="touch" class="hidden">
     <div id="joy-zone"><div id="joy-base"><div id="joy-knob"></div></div></div>
-    <button id="touch-jump">⤒</button>
-    <button id="touch-sprint">»</button>
+    <button id="touch-jump">⤒<small>JUMP</small></button>
+    <button id="touch-sprint">»<small>RUN</small></button>
+    <button id="touch-fullscreen">⛶</button>
+    <div id="touch-hint">Left: move (push far to run) · Right: drag to look, pinch to zoom</div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

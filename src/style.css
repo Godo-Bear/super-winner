@@ -144,16 +144,40 @@ html, body {
 .sug.mystery { background: #e9dcff; }
 
 /* ---------- Touch controls ---------- */
+button, .sug, .shop-item, .index-item { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 #touch { position: fixed; inset: 0; pointer-events: none; z-index: 12; }
-#joy-zone { position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; pointer-events: auto; }
-#joy-base { position: absolute; left: 40px; bottom: 40px; width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,.18); border: 3px solid rgba(255,255,255,.5); }
-#joy-knob { position: absolute; left: 35px; top: 35px; width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.75); border: 3px solid var(--ink); }
-#touch-jump, #touch-sprint { position: absolute; pointer-events: auto; border-radius: 50%; border: 3px solid var(--ink); font-size: 34px; font-weight: 800; color: var(--ink); }
-#touch-jump { right: 30px; bottom: 40px; width: 90px; height: 90px; background: rgba(255, 210, 63, .9); }
-#touch-sprint { right: 135px; bottom: 30px; width: 66px; height: 66px; background: rgba(255,255,255,.8); font-size: 26px; }
+#joy-zone { position: absolute; left: 0; bottom: 0; width: 45%; height: 60%; pointer-events: auto; touch-action: none; }
+#joy-base { position: absolute; left: 40px; bottom: 40px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,255,255,.2); border: 3px solid rgba(255,255,255,.6); box-shadow: 0 0 0 3px rgba(27,21,48,.35); }
+#joy-knob { position: absolute; left: 37px; top: 37px; width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.85); border: 3px solid var(--ink); }
+#touch-jump, #touch-sprint, #touch-fullscreen {
+  position: absolute; pointer-events: auto; touch-action: none; border-radius: 50%; border: 3px solid var(--ink); font-weight: 900; color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; box-shadow: 0 4px 0 var(--ink); user-select: none; -webkit-user-select: none;
+}
+#touch-jump small, #touch-sprint small { font-size: 11px; letter-spacing: 1px; }
+#touch-jump { right: 26px; bottom: 36px; width: 104px; height: 104px; background: rgba(255, 210, 63, .95); font-size: 38px; }
+#touch-jump:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+#touch-sprint { right: 142px; bottom: 26px; width: 72px; height: 72px; background: rgba(255,255,255,.85); font-size: 26px; }
 #touch-sprint.on { background: var(--green); }
+#touch-fullscreen { right: 12px; top: auto; bottom: 160px; width: 46px; height: 46px; background: rgba(255,255,255,.8); font-size: 20px; }
+#touch-hint { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 12px; font-weight: 800; opacity: .8; text-shadow: 0 1px 0 var(--ink); white-space: nowrap; animation: hintFade 8s forwards; }
+@keyframes hintFade { 0%, 70% { opacity: .85; } 100% { opacity: 0; } }
+body.touch-mode #killfeed { bottom: auto; top: 130px; }
+body.touch-mode .btn { min-height: 44px; }
 
 @media (max-width: 700px) {
+  .hud-tc { top: 88px !important; width: 94vw; }
+  #alive { font-size: 18px; }
+  #writer-status { font-size: 15px; white-space: normal; }
+  #writer-chance { font-size: 12px; }
+  #toasts { top: 176px; left: 50%; transform: translateX(-50%); align-items: center; width: 92vw; }
+  .toast { font-size: 15px; text-align: center; }
+  #killfeed, body.touch-mode #killfeed { top: auto; bottom: 230px; left: 8px; max-width: 62vw; }
+  .kf:nth-last-child(n+4) { display: none; }
+  #announce { top: 30%; }
+  #announce-by { font-size: 18px; }
+  #announce-word { font-size: clamp(34px, 11vw, 64px); -webkit-text-stroke-width: 3px; }
+  #announce-hint { font-size: 18px; }
+  #countdown { font-size: 64px; }
   #hp-bar { width: 140px; }
   .hud-tr { width: 160px; }
   .hz-chip { min-width: 0; font-size: 12px; }

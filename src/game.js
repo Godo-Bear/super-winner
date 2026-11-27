@@ -517,6 +517,7 @@ export class Game {
   onLocalDeath() {
     if (this.deathShown) return;
     this.deathShown = true;
+    this.ui.refreshTouch();
     this.player.alive = false;
     this.player.mesh.visible = false;
     this.controller.releasePointer();

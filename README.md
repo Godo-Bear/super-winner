@@ -28,10 +28,14 @@ npm run build
 | Action | Desktop | Mobile |
 | --- | --- | --- |
 | Move | WASD / arrow keys | Left joystick |
-| Jump (hold with a jetpack to fly) | Space | ⤒ button |
-| Sprint | Shift | » toggle |
-| Camera | Mouse (click to lock, Esc to release), wheel to zoom | Drag the right side of the screen |
+| Jump (hold with a jetpack to fly) | Space | JUMP button |
+| Sprint | Shift | Push the joystick all the way, or the RUN toggle |
+| Camera | Mouse (click to lock, Esc to release), wheel to zoom | Drag the right side of the screen, pinch to zoom |
 | Writer box | Type, Tab/→ to autocomplete, ↑/↓ to pick, Enter to send | Tap a suggestion or type |
+| Fullscreen | ⛶ in the lobby | ⛶ button |
+
+Touch controls switch on automatically the first time you touch the screen (phones, tablets and touch-screen
+laptops) and switch off again when you move with the keyboard.
 
 ## Rules
 
