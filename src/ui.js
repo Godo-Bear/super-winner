@@ -1,4 +1,5 @@
 import { isWordAllowed } from './filter.js';
+import { describe, suggestExtra, interpret, EXTRA_WORD_COUNT } from './lexicon.js';
 import { DEFAULT_RELAY } from './net/connection.js';
 import { ITEMS, SLOTS, isOwned, buy, DEFAULT_EQUIPPED } from './shop.js';
 import { writeSave } from './save.js';
@@ -280,10 +281,14 @@ export class UI {
       html += '</div>';
     }
     const myst = this.game.save.mysteries;
-    html += `<div class="index-cat">🫧 Mystery Blobs (${myst.length})</div>`;
+    html += `<div class="index-cat">🧠 Other words you've brought to life (${myst.length}) <small style="opacity:.6">· ${EXTRA_WORD_COUNT}+ more words to find</small></div>`;
     html += myst.length
-      ? `<div class="index-grid">${myst.slice(-60).map((w) => `<div class="index-item"><div class="ic">🫧</div><div class="nm">${esc(w)}</div><div class="ds">A one-of-a-kind blob</div></div>`).join('')}</div>`
-      : '<p>Type a word that is not in the dictionary to create a Mystery Blob!</p>';
+      ? `<div class="index-grid">${myst.slice(-80).map((w) => {
+        const d = interpret(w);
+        const icon = d ? (d.entry ? d.entry.icon : d.icon) : '🫧';
+        return `<div class="index-item"><div class="ic">${icon}</div><div class="nm">${esc(w)}</div><div class="ds">${d ? 'Word brain creation' : 'A one-of-a-kind Mystery Blob'}</div></div>`;
+      }).join('')}</div>`
+      : '<p>Try animals, food, objects, people, vehicles... or any word at all! Add a describing word like "giant" or "fire".</p>';
     $('index-body').innerHTML = html;
   }
 
@@ -455,6 +460,14 @@ export class UI {
   refreshSuggestions() {
     const v = $('writer-input').value.trim();
     this.sugs = this.game.words.suggest(v, 6);
+    if (this.sugs.length < 6) {
+      const have = new Set(this.sugs.map((x) => x.fill));
+      for (const x of suggestExtra(v.split(' ').pop(), 6)) {
+        if (this.sugs.length >= 6) break;
+        const fill = v.includes(' ') ? `${v.split(' ')[0]} ${x.fill}` : x.fill;
+        if (!have.has(fill)) this.sugs.push({ fill, icon: x.icon });
+      }
+    }
     this.renderSuggestions();
   }
 
@@ -462,7 +475,11 @@ export class UI {
     const v = $('writer-input').value.trim();
     let html = this.sugs.map((s, i) => `<span class="sug ${i === this.sugIndex ? 'active' : ''}" data-fill="${esc(s.fill)}">${s.icon} ${esc(s.fill)}</span>`).join('');
     if (v && !isWordAllowed(v)) html += '<span class="sug blocked">🚫 Not allowed</span>';
-    else if (v && !this.game.words.resolveWord(v)) html += `<span class="sug mystery">🫧 "${esc(v)}" = Mystery Blob!</span>`;
+    else if (v && v.split(' ').length > 2) html += '<span class="sug blocked">Use 1 or 2 words</span>';
+    else if (v && !this.game.words.resolveWord(v)) {
+      const d = describe(v);
+      html += d ? `<span class="sug mystery">${d.icon} "${esc(v)}" works!</span>` : `<span class="sug mystery">🫧 "${esc(v)}" = Mystery Blob!</span>`;
+    }
     $('writer-suggest').innerHTML = html;
   }
 

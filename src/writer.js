@@ -1,4 +1,5 @@
 import { randomBotWord } from './words.js';
+import { randomSmartWord } from './lexicon.js';
 import * as THREE from 'three';
 import { makeTextSprite, rand, pick } from './utils.js';
 import { isWordAllowed } from './filter.js';
@@ -165,7 +166,7 @@ export class WriterSystem {
     } else {
       this.playerWriting = false;
       this.writeT = rand(1.8, 4);
-      this.botWord = randomBotWord();
+      this.botWord = Math.random() < 0.45 ? randomSmartWord() : randomBotWord();
       w.mesh.add(this.bubble);
     }
   }
@@ -174,6 +175,10 @@ export class WriterSystem {
   /** Player pressed GO: any word is allowed unless it is inappropriate. */
   playerSubmit(word) {
     const w = word.trim();
+    if (w.split(/\s+/).length > 2) {
+      this.game.ui.writerError('Use 1 or 2 words!');
+      return;
+    }
     if (w.replace(/\s/g, '').length < 2) {
       this.game.ui.writerError('Type at least 2 letters!');
       return;
@@ -190,6 +195,7 @@ export class WriterSystem {
   remoteSubmit(ch, word) {
     if (this.phase !== 'writing' || !this.remoteWriting || this.writer !== ch) return;
     const w = word.trim();
+    if (w.split(/\s+/).length > 2) return this.game.net.sendDirect(ch.clientId, 'werr', 'Use 1 or 2 words!');
     if (w.replace(/\s/g, '').length < 2) return this.game.net.sendDirect(ch.clientId, 'werr', 'Type at least 2 letters!');
     if (!isWordAllowed(w)) return this.game.net.sendDirect(ch.clientId, 'werr', "🚫 That word isn't allowed. Try another!");
     this.game.net.sendDirect(ch.clientId, 'wclose', '');

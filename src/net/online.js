@@ -339,7 +339,7 @@ export class Online {
         (c.onGround ? 1 : 0) | (c.tripped > 0 ? 2 : 0) | (c.jetpack > 0 && c.input.jumpHeld ? 4 : 0) | (c.shield > 0 ? 8 : 0) | (c.hurtFlash > 0 ? 16 : 0),
         R2(c.mods.sink), R2(c.vel.x), R2(c.vel.z),
       ]),
-      env: [R2(e.friction), R2(e.speedMul), R2(e.windX), R2(e.windZ), Math.round(e.fogFar), Math.round(e.fogNear), hex(e.fogColor), hex(e.skyTint), R2(e.light), hex(e.groundTint)],
+      env: [R2(e.friction), R2(e.speedMul), R2(e.windX), R2(e.windZ), Math.round(e.fogFar), Math.round(e.fogNear), hex(e.fogColor), hex(e.skyTint), R2(e.light), hex(e.groundTint), R2(e.gravityMul)],
       hud: {
         ph: g.writer.phase, wid: g.writer.writer ? g.writer.writer.id : -1, wt: Math.ceil(g.writer.timer),
         hz: g.hazards.list.map((h) => [h.uid, h.icon, h.label, h.owner ? h.owner.name : '', R2(clamp(1 - h.t / h.duration, 0, 1)), h.recharging ? 1 : 0]),
@@ -540,6 +540,7 @@ export class Online {
     g.ui.announce('✍️ You are the', 'WRITER!', 'Type a word. It will come to life!', '#7dffb0');
     g.ui.openWriter((word) => {
       const w = word.trim();
+      if (w.split(/\s+/).length > 2) return g.ui.writerError('Use 1 or 2 words!');
       if (w.replace(/\s/g, '').length < 2) return g.ui.writerError('Type at least 2 letters!');
       if (!isWordAllowed(w)) { g.audio.hurt(); return g.ui.writerError("🚫 That word isn't allowed. Try another!"); }
       this.conn.send({ t: 'word', w });
@@ -562,6 +563,7 @@ export class Online {
       e.skyTint = v[7] === null ? null : (this._sky ||= new THREE.Color()).setHex(v[7]);
       e.light = v[8];
       e.groundTint = v[9] === null ? null : (this._gr ||= new THREE.Color()).setHex(v[9]);
+      e.gravityMul = v[10] ?? 1;
     }
     const me = g.player;
     if (me.netMods) {

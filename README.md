@@ -174,6 +174,26 @@ worker/src/index.js  the Worker: serves the game, and one Durable Object per roo
 scripts/dev-relay.mjs  local Node relay for testing (`npm run relay`)
 ```
 
+## The word brain (type almost anything)
+
+`src/lexicon.js` turns any 1–2 word phrase into something, in this order:
+
+1. **Hand-made dictionary words** (`words.js`): meteor, tsunami, nuke...
+2. **Describing word + noun**: "giant chicken", "fire ninja", "tiny robots", "golden piano", "baby shark".
+   Describing words include giant/tiny/fire/ice/fast/angry/cute/golden/many/flying and colours.
+3. **~700 extra words**, each plugged into a generic hazard:
+   - creatures that chase, charge, swarm, dive-bomb, leap or shoot: lion, spider, eagle, whale, grandma, ninja, wizard...
+   - things that fall: piano, toilet, rocks, dynamite; food that you can eat afterwards (pizza, cake...);
+     money that gives real coins; hearts that heal
+   - vehicles racing along red lanes: car, bus, train, tank, bike...
+   - effects: wind, low gravity (moon), darkness, magnet, poison gas (skunk!), disco, slow motion, UFO
+4. **Known words hidden inside** a longer word: "megashark", "sharknado", "cheeseburger"
+5. **Word endings**: "...er"/"...man" → a person, "...ball" → giant ball, "...saurus" → a dinosaur
+6. **Anything else** → a Mystery Blob made from the word (so every word does *something*)
+
+To add a word, add a line to the `LEX` list in `src/lexicon.js`, e.g.
+`[['penguin', 'penguins'], '🐧', 'walker', { color: 0x222222, color2: 0xffffff }]`.
+
 ## Adding new words
 
 ### 1. A new spelling for an existing hazard

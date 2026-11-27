@@ -15,6 +15,9 @@ import weaponHazards from './hazards/weapons.js';
 import natureHazards from './hazards/nature.js';
 import helpfulHazards from './hazards/helpful.js';
 import sillyHazards from './hazards/silly.js';
+import creatureHazards from './hazards/creatures.js';
+import objectHazards from './hazards/objects.js';
+import effectHazards from './hazards/effects.js';
 import { WriterSystem, CATEGORY_COLORS, writerChance } from './writer.js';
 import { UI, esc } from './ui.js';
 import { Online } from './net/online.js';
@@ -66,7 +69,7 @@ export class Game {
     this.particles = new Particles(scene);
     this.audio = new Audio();
     this.hazards = new HazardManager(this);
-    registerHazards({ ...mysteryHazards, ...disasterHazards, ...weatherHazards, ...monsterHazards, ...weaponHazards, ...natureHazards, ...helpfulHazards, ...sillyHazards });
+    registerHazards({ ...mysteryHazards, ...disasterHazards, ...weatherHazards, ...monsterHazards, ...weaponHazards, ...natureHazards, ...helpfulHazards, ...sillyHazards, ...creatureHazards, ...objectHazards, ...effectHazards });
     installWarnPulse(this);
     this.writer = new WriterSystem(this);
     this.controller = new PlayerController(this);
@@ -182,7 +185,7 @@ export class Game {
 
   resetEnv() {
     const e = this.env;
-    e.friction = 1; e.speedMul = 1; e.windX = 0; e.windZ = 0;
+    e.friction = 1; e.speedMul = 1; e.windX = 0; e.windZ = 0; e.gravityMul = 1;
     e.fogFar = 230; e.fogNear = 70; e.fogColor = null; e.skyTint = null; e.light = 1; e.groundTint = null;
   }
 
@@ -412,7 +415,7 @@ export class Game {
   announceWord(writer, h) {
     const info = {
       wid: writer.id, label: h.label, icon: h.icon, hint: h.hint, entry: h.entry ? h.entry.id : null, word: h.word,
-      color: h.entry ? CATEGORY_COLORS[h.entry.category] : '#c4a7ff',
+      color: h.entry ? CATEGORY_COLORS[h.entry.category] : h.smart ? '#ffb3e6' : '#c4a7ff',
     };
     this.showWord(info);
     this.net.event('word', info);

@@ -129,7 +129,7 @@ export class Character {
       this.vel.y = Math.min(this.vel.y + 42 * dt, 8);
       if (Math.random() < 0.6) game.particles.emit({ x: this.pos.x, y: this.pos.y + 0.8, z: this.pos.z, color: [0xffa31a, 0xffe066, 0xff5a1f], count: 2, speed: 2, size: 0.25, life: 0.4, gravity: -2, dir: { x: 0, y: -1, z: 0 } });
     }
-    this.vel.y -= GRAVITY * dt;
+    this.vel.y -= GRAVITY * env.gravityMul * dt;
     if (this.vel.y < -32) this.vel.y = -32;
 
     this.pos.x += (this.vel.x + env.windX) * dt;

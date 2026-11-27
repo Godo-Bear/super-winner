@@ -18,12 +18,12 @@ import { ISLAND_RADIUS } from '../island.js';
  * they "noticed" it, which is how the ~70% dodge rate works).
  */
 export class Hazard {
-  constructor(game, { word, entry, owner }) {
+  constructor(game, { word, entry, owner, spec = null }) {
     this.game = game;
     this.word = word;
     this.entry = entry;
     this.owner = owner;
-    this.opts = { word, entry, owner };
+    this.opts = { word, entry, owner, spec };
     this.recurring = true; // comes back after a pause when finished (set false for one-time things)
     this.generation = 1;
     this.label = entry ? entry.name : word.replace(/\b\w/g, (c) => c.toUpperCase());
