@@ -37,6 +37,18 @@ export class Character {
     this.alive = false;
   }
 
+  /** Rebuild the body with new colours / hat (coin shop, online looks). */
+  setLook(colors) {
+    const old = this.model;
+    this.mesh.remove(old.root);
+    for (const m of old.materials) m.dispose();
+    const fresh = makeHumanoid({ ...colors, ownMaterials: true });
+    fresh.group.remove(fresh.root);
+    this.mesh.add(fresh.root);
+    this.model = { ...fresh, group: this.mesh };
+    this.colors = colors;
+  }
+
   setName(name) {
     this.name = name;
     if (this.label) { this.mesh.remove(this.label); this.label.userData.dispose(); }
@@ -162,6 +174,7 @@ export class Character {
     this.mesh.rotation.set(this.tripped > 0 ? -1.2 : 0, this.yaw + this.spin, 0);
     const flash = this.hurtFlash > 0 ? this.hurtFlash * 4 : 0;
     for (const m of this.model.materials) m.emissive.setRGB(flash, 0, 0);
+    this.model.parts.head.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 14; });
     this.shieldMesh.visible = this.shield > 0;
     if (this.shield > 0) this.shieldMesh.rotation.y += dt * 2;
   }

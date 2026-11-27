@@ -19,6 +19,7 @@ import { WriterSystem, CATEGORY_COLORS } from './writer.js';
 import { UI, esc } from './ui.js';
 import { Online } from './net/online.js';
 import { loadSave, writeSave } from './save.js';
+import { lookFromSave } from './shop.js';
 import * as words from './words.js';
 import { clamp, pick, rand } from './utils.js';
 
@@ -26,7 +27,6 @@ const BOT_COUNT = 11;
 const SHIRTS = [0xff595e, 0xffca3a, 0x8ac926, 0x1982c4, 0x6a4c93, 0xff924c, 0xf15bb5, 0x00bbf9, 0x00f5d4, 0x9b5de5, 0xfee440, 0xef476f, 0x06d6a0];
 const PANTS = [0x2b2d42, 0x3d405b, 0x264653, 0x6d597a, 0x463f3a, 0x1d3557];
 const SKINS = [0xffd6a5, 0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffe0bd, 0x9fe870, 0x7ec8e3];
-const PLAYER_COLORS = { skin: 0xffd6a5, shirt: 0x22c55e, pants: 0x1d3557, hat: 0xffd23f };
 
 export class Game {
   constructor(container) {
@@ -163,11 +163,11 @@ export class Game {
   /** Single player (and online host): you + 11 bots. */
   makeSoloRoster() {
     this.clearCharacters();
-    this.player = new Character(this, { id: 0, name: this.mode === 'host' ? this.net.myName : 'You', isPlayer: true, colors: PLAYER_COLORS });
+    this.player = new Character(this, { id: 0, name: this.mode === 'host' ? this.net.myName : 'You', isPlayer: true, colors: lookFromSave(this.save) });
     this.characters.push(this.player);
     for (let i = 0; i < BOT_COUNT; i++) {
       this.characters.push(new Character(this, {
-        id: i + 1, name: 'Bot', colors: { skin: pick(SKINS), shirt: SHIRTS[i % SHIRTS.length], pants: pick(PANTS), hat: Math.random() < 0.4 ? pick(SHIRTS) : null },
+        id: i + 1, name: 'Bot', colors: { skin: pick(SKINS), shirt: SHIRTS[i % SHIRTS.length], pants: pick(PANTS), hat: Math.random() < 0.5 ? pick(SHIRTS) : null, hatStyle: pick(['cap', 'cap', 'party', 'tophat', 'chef', 'propeller']) },
       }));
     }
   }
@@ -187,11 +187,18 @@ export class Game {
     this.player = this.characters.find((c) => c.isPlayer);
     if (!this.player) {
       // joined mid-round: watch until the next one
-      this.spectator = new Character(this, { id: -1, name: this.net.myName || 'You', isPlayer: true, colors: PLAYER_COLORS });
+      this.spectator = new Character(this, { id: -1, name: this.net.myName || 'You', isPlayer: true, colors: lookFromSave(this.save) });
       this.spectator.alive = false;
       this.spectator.hp = 0;
       this.player = this.spectator;
     }
+  }
+
+  /** The coin shop changed what we wear. */
+  lookChanged() {
+    const look = lookFromSave(this.save);
+    if (this.mode === 'client') this.net.sendLook(look);
+    else this.player.setLook(look);
   }
 
   charById(id) { return this.characters.find((c) => c.id === id) || null; }
@@ -587,6 +594,16 @@ export class Game {
         if (this.spectateTarget) target = this.spectateTarget;
       }
       this.controller.updateCamera(dt, target.pos, this.shake);
+    } else if (this.shopPreview) {
+      // coin shop: show off your outfit
+      const p = this.player, gy = terrainHeight(0, 2);
+      p.mesh.visible = true;
+      p.mesh.position.set(0, gy, 2);
+      p.mesh.rotation.set(0, Math.sin(this.time * 0.8) * 0.9, 0);
+      p.model.parts.head.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 14; });
+      const wide = innerWidth > innerHeight;
+      this.camera.position.set(wide ? 1.7 : 0, gy + 2.2, 2 + (wide ? 5 : 7));
+      this.camera.lookAt(wide ? 1.7 : 0, gy + (wide ? 1.3 : 0.4), 2);
     } else {
       const a = this.time * 0.06;
       this.camera.position.set(Math.cos(a) * 52, 26, Math.sin(a) * 52);

@@ -1,5 +1,7 @@
 import { isWordAllowed } from './filter.js';
 import { DEFAULT_RELAY } from './net/connection.js';
+import { ITEMS, SLOTS, isOwned, buy, DEFAULT_EQUIPPED } from './shop.js';
+import { writeSave } from './save.js';
 const $ = (id) => document.getElementById(id);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -30,6 +32,74 @@ export class UI {
     this.refreshMute();
     this.bindWriter();
     this.bindOnline();
+    this.bindShop();
+  }
+
+  // ---------------- Coin shop ----------------
+  bindShop() {
+    this.shopSlot = 'hat';
+    const open = () => {
+      this.game.audio.unlock();
+      $('shop').classList.remove('hidden');
+      $('lobby').classList.add('hidden');
+      $('room').classList.add('hidden');
+      this.game.shopPreview = true;
+      this.renderShop();
+    };
+    $('btn-shop').addEventListener('click', open);
+    $('room-shop').addEventListener('click', open);
+    $('shop-close').addEventListener('click', () => this.closeShop());
+    $('shop-tabs').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-slot]');
+      if (!b) return;
+      this.shopSlot = b.dataset.slot;
+      this.renderShop();
+    });
+    $('shop-grid').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-item]');
+      if (!b) return;
+      const g = this.game, save = g.save;
+      const item = ITEMS.find((i) => i.id === b.dataset.item);
+      if (!item) return;
+      if (!isOwned(save, item)) {
+        const err = buy(save, item);
+        if (err) { $('shop-msg').textContent = err; g.audio.hurt(); return; }
+        $('shop-msg').textContent = `Bought ${item.name}!`;
+        g.audio.coin();
+      } else {
+        $('shop-msg').textContent = '';
+        g.audio.pop();
+      }
+      save.equipped = { ...DEFAULT_EQUIPPED, ...save.equipped, [item.slot]: item.id };
+      writeSave(save);
+      g.lookChanged();
+      this.renderShop();
+    });
+  }
+
+  closeShop() {
+    $('shop').classList.add('hidden');
+    this.game.shopPreview = false;
+    if (this.game.state === 'lobby') {
+      this.game.player.mesh.visible = false;
+      this.showLobby();
+    }
+  }
+
+  renderShop() {
+    const save = this.game.save;
+    $('shop-coins').textContent = `🪙 ${save.coins}`;
+    $('shop-tabs').innerHTML = Object.entries(SLOTS).map(([k, v]) =>
+      `<button class="btn btn-small ${k === this.shopSlot ? 'active' : ''}" data-slot="${k}">${v.icon} ${v.name}</button>`).join('');
+    const eq = { ...DEFAULT_EQUIPPED, ...save.equipped };
+    $('shop-grid').innerHTML = ITEMS.filter((i) => i.slot === this.shopSlot).map((i) => {
+      const owned = isOwned(save, i);
+      const on = eq[i.slot] === i.id;
+      const sw = i.slot === 'hat' ? `<span class="sw-icon">${i.icon}</span>` : `<span class="sw" style="background:#${i.color.toString(16).padStart(6, '0')}"></span>`;
+      const label = on ? '✔ Wearing' : owned ? 'Wear' : `🪙 ${i.price}`;
+      const cls = on ? 'on' : owned ? 'owned' : save.coins >= i.price ? 'buy' : 'locked';
+      return `<button class="shop-item ${cls}" data-item="${i.id}">${sw}<b>${esc(i.name)}</b><span class="price">${label}</span></button>`;
+    }).join('');
   }
 
   // ---------------- Online menus ----------------
@@ -142,6 +212,7 @@ export class UI {
   }
 
   showHUD() {
+    if (!$('shop').classList.contains('hidden')) this.closeShop();
     $('lobby').classList.add('hidden');
     $('room').classList.add('hidden');
     $('online').classList.add('hidden');

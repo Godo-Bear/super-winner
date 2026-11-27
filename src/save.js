@@ -1,6 +1,6 @@
 const KEY = 'super_winner_save_v1';
 
-const DEFAULT = { coins: 0, discovered: [], mysteries: [], wins: 0, games: 0, bestKills: 0 };
+const DEFAULT = { coins: 0, discovered: [], mysteries: [], wins: 0, games: 0, bestKills: 0, owned: [], equipped: {} };
 
 export function loadSave() {
   try {
@@ -12,6 +12,8 @@ export function loadSave() {
       ...d,
       discovered: Array.isArray(d.discovered) ? d.discovered : [],
       mysteries: Array.isArray(d.mysteries) ? d.mysteries : [],
+      owned: Array.isArray(d.owned) ? d.owned : [],
+      equipped: d.equipped && typeof d.equipped === 'object' ? d.equipped : {},
     };
   } catch {
     return { ...DEFAULT };

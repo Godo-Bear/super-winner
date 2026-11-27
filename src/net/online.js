@@ -4,6 +4,7 @@ import { SceneEncoder, SceneDecoder } from './scenesync.js';
 import { NAMED_MATERIALS, Precipitation } from '../hazards/common.js';
 import { KILL_Y } from '../island.js';
 import { isWordAllowed } from '../filter.js';
+import { lookFromSave, cleanLook } from '../shop.js';
 import { angleLerp, clamp } from '../utils.js';
 
 /**
@@ -91,7 +92,13 @@ export class Online {
     conn.on('any', (m) => this.onHostMessage(m));
     conn.on('closed', () => this.dropped('The host left the room.'));
     conn.on('disconnect', () => this.dropped('Lost connection to the host.'));
+    this.sendLook(lookFromSave(this.game.save));
     this.game.ui.showRoom();
+  }
+
+  /** Client: tell the host what we're wearing (used from the next round). */
+  sendLook(look) {
+    if (this.isClient && this.conn) this.conn.send({ t: 'look', c: look });
   }
 
   /** Leave the room and go back to single player. */
@@ -185,6 +192,10 @@ export class Online {
     const c = this.game.characters.find((ch) => ch.remote && ch.clientId === from);
     if (d.t === 'in' && c && Array.isArray(d.p) && Array.isArray(d.v)) {
       c.netIn = d;
+    } else if (d.t === 'look') {
+      const p = this.players.find((x) => x.id === from);
+      const look = cleanLook(d.c);
+      if (p && look) p.look = look;
     } else if (d.t === 'word' && c && typeof d.w === 'string') {
       this.game.writer.remoteSubmit(c, d.w.slice(0, 24));
     }
@@ -201,7 +212,7 @@ export class Online {
       c.isBot = !p;
       c.clientId = p ? p.id : null;
       c.netIn = null;
-      if (p) c.setName(p.name);
+      if (p) { c.setName(p.name); if (p.look) c.setLook(p.look); }
     });
   }
 
