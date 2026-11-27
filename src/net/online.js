@@ -19,6 +19,15 @@ import { angleLerp, clamp } from '../utils.js';
  * reports it ~30 times a second. The host applies hazards to that report and sends
  * back corrections: position pushes, velocity knocks, slow-downs, HP and power-ups.
  */
+function playerId() {
+  try {
+    let id = localStorage.getItem('sw_pid');
+    if (!id) { id = Math.random().toString(36).slice(2, 12); localStorage.setItem('sw_pid', id); }
+    return id;
+  } catch { return Math.random().toString(36).slice(2, 12); }
+}
+
+const KNOCKED_OUT_MSG = "You were knocked out of this round, so you can't rejoin this room until it ends. Wait a moment and try again, or join a different room!";
 const SNAP_RATE = 20;
 const INPUT_RATE = 30;
 const R2 = (v) => Math.round(v * 100) / 100;
@@ -68,6 +77,7 @@ export class Online {
     this.role = 'host';
     this.myName = name;
     this.players = [{ id: this.conn.id, name, host: true }];
+    this.knockedOut = new Set(); // player ids out of the current round: they can't rejoin until it ends
     this.encoder = new SceneEncoder(this.game.hazardRoot);
     this.game.mode = 'host';
     this.installHostHooks();
@@ -92,8 +102,15 @@ export class Online {
     conn.on('any', (m) => this.onHostMessage(m));
     conn.on('closed', () => this.dropped('The host left the room.'));
     conn.on('disconnect', () => this.dropped('Lost connection to the host.'));
+    conn.send({ t: 'hello', pid: playerId() });
     this.sendLook(lookFromSave(this.game.save));
     this.game.ui.showRoom();
+  }
+
+  /** Knocked out online: leave this room and open the join screen for another one. */
+  switchRoom() {
+    this.leave();
+    this.game.ui.openOnline('Join a different room with its code, or create your own!');
   }
 
   /** Client: tell the host what we're wearing (used from the next round). */
@@ -140,7 +157,7 @@ export class Online {
     const emit = g.particles.emit.bind(g.particles);
     g.particles.emit = (o) => {
       emit(o);
-      if (live()) this.events.push(['p', o]);
+      if (live() && !o.local) this.events.push(['p', o]);
     };
     let depth = 0;
     for (const name of SHARED_SOUNDS) {
@@ -181,6 +198,7 @@ export class Online {
     const p = this.players.find((x) => x.id === m.id);
     this.players = this.players.filter((x) => x.id !== m.id);
     const c = this.game.characters.find((ch) => ch.remote && ch.clientId === m.id);
+    if (this.inRound && p?.pid && c) this.knockedOut.add(p.pid);
     if (c && c.alive) this.game.killCharacter(c, 'left the game', null);
     if (c) c.clientId = null;
     if (p) this.game.ui.toast(`👋 ${p.name} left`);
@@ -190,6 +208,16 @@ export class Online {
   onClientMessage(from, d) {
     if (!d || typeof d !== 'object') return;
     const c = this.game.characters.find((ch) => ch.remote && ch.clientId === from);
+    if (d.t === 'hello' && typeof d.pid === 'string') {
+      const p = this.players.find((x) => x.id === from);
+      if (p) p.pid = d.pid.slice(0, 20);
+      if (this.inRound && this.knockedOut.has(p?.pid)) {
+        this.conn.sendTo(from, { t: 'kick', message: KNOCKED_OUT_MSG });
+        this.players = this.players.filter((x) => x.id !== from);
+        this.broadcastRoom();
+      }
+      return;
+    }
     if (d.t === 'in' && c && Array.isArray(d.p) && Array.isArray(d.v)) {
       c.netIn = d;
     } else if (d.t === 'look') {
@@ -228,8 +256,15 @@ export class Online {
     };
   }
 
+  /** Host: a remote player was knocked out — remember them until the round ends. */
+  playerKnockedOut(c) {
+    const p = this.players.find((x) => x.id === c.clientId);
+    if (p?.pid) this.knockedOut.add(p.pid);
+  }
+
   hostStarted() {
     this.inRound = true;
+    this.knockedOut.clear();
     this.events.length = 0;
     this.direct.clear();
     this.encoder.reset();
@@ -340,11 +375,13 @@ export class Online {
     this.hostTick(1); // flush the last events
     this.conn.sendTo('all', { t: 'end', winner: winner ? winner.id : -1, time: Math.round(this.game.roundTime) });
     this.inRound = false;
+    this.knockedOut.clear();
   }
 
   hostToRoom(aborted) {
     if (!this.isHost) return;
     this.inRound = false;
+    this.knockedOut.clear();
     for (const c of this.game.characters) { c.remote = false; c.clientId = null; }
     this.broadcastRoom({ aborted: !!aborted });
   }
@@ -365,6 +402,12 @@ export class Online {
         if (g.state === 'lobby') g.ui.showRoom();
         break;
       case 'start': this.clientStart(m); break;
+      case 'kick': {
+        const conn = this.conn;
+        this.dropped(m.message || 'You were removed from the room.');
+        conn?.close();
+        break;
+      }
       case 's': if (this.inRound) this.applySnapshot(m); break;
       case 'd': if (this.inRound) for (const e of m.ev) this.directEvent(e); break;
       case 'end': if (this.inRound) this.clientEnd(m); break;

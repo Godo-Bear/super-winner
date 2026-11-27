@@ -52,8 +52,8 @@ export class Character {
   setName(name) {
     this.name = name;
     if (this.label) { this.mesh.remove(this.label); this.label.userData.dispose(); }
-    this.label = makeTextSprite(name, { color: this.isPlayer ? '#7dffb0' : '#ffffff', fontSize: 44, height: 0.42 });
-    this.label.position.y = 2.95;
+    this.label = makeTextSprite(name, { color: this.isPlayer ? '#7dffb0' : '#ffffff', fontSize: 40, height: 0.4, bg: 'rgba(20,14,40,0.5)' });
+    this.label.position.y = 3.05;
     this.mesh.add(this.label);
   }
 
@@ -159,22 +159,43 @@ export class Character {
   }
 
   updateVisual(dt) {
+    const parts = this.model.parts, root = this.model.root;
     const hs = Math.hypot(this.vel.x, this.vel.z);
     this.walkPhase += dt * hs * 1.7;
-    const amt = this.onGround ? Math.min(1, hs / 5) * 0.8 : 0.35;
-    animateHumanoid(this.model.parts, this.walkPhase, amt);
-    if (!this.onGround) {
-      this.model.parts.armL.rotation.z = -0.6;
-      this.model.parts.armR.rotation.z = 0.6;
+    const moving = this.onGround ? Math.min(1, hs / 5) : 0;
+    const t = this.game.time + this.id * 0.7;
+    if (this.onGround) {
+      animateHumanoid(parts, this.walkPhase, moving * 0.85);
+      parts.armL.rotation.z = -0.05 - Math.sin(t * 2) * 0.03;
+      parts.armR.rotation.z = 0.05 + Math.sin(t * 2) * 0.03;
     } else {
-      this.model.parts.armL.rotation.z = 0;
-      this.model.parts.armR.rotation.z = 0;
+      // airborne: legs tucked, arms thrown up
+      const up = this.vel.y > 0 ? 1 : 0.6;
+      parts.legL.rotation.x = -0.5; parts.legR.rotation.x = 0.3;
+      parts.armL.rotation.x = -2.4 * up; parts.armR.rotation.x = -2.4 * up;
+      parts.armL.rotation.z = -0.35; parts.armR.rotation.z = 0.35;
     }
+    // landing squash, walking bounce, sprint lean, idle breathing
+    if (this.onGround && !this.wasGroundVis) this.squash = Math.min(0.28, Math.max(0.1, -(this.lastVy || 0) / 60));
+    this.wasGroundVis = this.onGround;
+    this.lastVy = this.vel.y;
+    this.squash = Math.max(0, (this.squash || 0) - dt * 1.6);
+    const breathe = Math.sin(t * 2.2) * 0.012 * (1 - moving);
+    root.scale.set(1 + this.squash * 0.5, 1 - this.squash + breathe, 1 + this.squash * 0.5);
+    root.position.y = this.onGround ? Math.abs(Math.sin(this.walkPhase)) * 0.09 * moving : 0;
+    const lean = this.onGround ? Math.min(0.28, hs / 32) : 0;
+    root.rotation.x += (lean - root.rotation.x) * Math.min(1, dt * 8);
+    parts.head.rotation.x = -lean * 0.6;
+    parts.head.rotation.y = Math.sin(t * 0.6) * 0.15 * (1 - moving);
+
     this.mesh.position.set(this.pos.x, this.pos.y - this.mods.sink, this.pos.z);
     this.mesh.rotation.set(this.tripped > 0 ? -1.2 : 0, this.yaw + this.spin, 0);
     const flash = this.hurtFlash > 0 ? this.hurtFlash * 4 : 0;
     for (const m of this.model.materials) m.emissive.setRGB(flash, 0, 0);
-    this.model.parts.head.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 14; });
+    parts.head.children.forEach((c) => {
+      if (c.userData.spin) c.rotation.y += dt * 14;
+      if (c.userData.mouth) c.scale.y = flash > 0 ? 3 : 1; // "ouch" face
+    });
     this.shieldMesh.visible = this.shield > 0;
     if (this.shield > 0) this.shieldMesh.rotation.y += dt * 2;
   }

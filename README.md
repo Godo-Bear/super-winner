@@ -43,6 +43,9 @@ npm run build
   behaviour (chase / jump / explode / shoot), size, speed, colour and look come from a hash of the word, so the same word
   always makes the same creature. Inappropriate words are rejected by a profanity filter (see `src/filter.js`).
 * Coins (saved in `localStorage`): **+5** per hazard survived, **+10** per elimination caused by your word, **+50** for a win.
+* The HUD shows **your chance to be the next Writer** (the same odds the game actually uses).
+* Spend coins in the **🛍️ Shop** on hats, shirts, pants and skin colours (real skin tones are always free). Your
+  outfit shows up for everyone when you play online. Items live in `src/shop.js`, so adding one is one line.
 * The lobby's **Word Index** tracks every dictionary word you have seen (undiscovered words show as `???`) and every
   Mystery Blob you have created.
 
@@ -121,6 +124,10 @@ LAN IP instead (start Vite with `npx vite --host`).
 * Writers: when a friend is picked, their own writer box opens; the host checks their word with the same filter.
 * Coins and the Word Index are saved in each player's own browser.
 
+Knocked out online? You can **wait** in the room (spectate, then play next round) or press **🔀 Other room**.
+You can't leave and rejoin the same room to get back into a round you were knocked out of: the host remembers you
+until that round ends.
+
 Limits to know about: the host should keep the game tab open and in front (browsers slow down background tabs,
 which pauses the game for everyone), and if the host leaves, the room closes. Up to 12 players per room.
 
@@ -141,6 +148,7 @@ src/
   audio.js           Web Audio synthesised sound effects
   particles.js       pooled InstancedMesh particles
   save.js            localStorage save data
+  shop.js            coin shop items (data only)
   net/
     connection.js    WebSocket connection to the relay
     online.js        rooms, host snapshots/corrections, client prediction and interpolation

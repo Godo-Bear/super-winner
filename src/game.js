@@ -15,7 +15,7 @@ import weaponHazards from './hazards/weapons.js';
 import natureHazards from './hazards/nature.js';
 import helpfulHazards from './hazards/helpful.js';
 import sillyHazards from './hazards/silly.js';
-import { WriterSystem, CATEGORY_COLORS } from './writer.js';
+import { WriterSystem, CATEGORY_COLORS, writerChance } from './writer.js';
 import { UI, esc } from './ui.js';
 import { Online } from './net/online.js';
 import { loadSave, writeSave } from './save.js';
@@ -47,6 +47,8 @@ export class Game {
     renderer.setSize(innerWidth, innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.12;
     container.appendChild(renderer.domElement);
     this.renderer = renderer;
 
@@ -117,6 +119,41 @@ export class Game {
     sun.shadow.normalBias = 0.04;
     this.scene.add(sun);
     this.sun = sun;
+
+    // a big soft sun in the sky, in the same direction as the light
+    const c2 = document.createElement('canvas');
+    c2.width = c2.height = 128;
+    const ctx = c2.getContext('2d');
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,253,235,1)');
+    grad.addColorStop(0.22, 'rgba(255,244,190,1)');
+    grad.addColorStop(0.32, 'rgba(255,230,150,0.55)');
+    grad.addColorStop(1, 'rgba(255,220,140,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+    const tex = new THREE.CanvasTexture(c2);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, fog: false, depthWrite: false, transparent: true, toneMapped: false }));
+    sunSprite.position.copy(sun.position).normalize().multiplyScalar(380);
+    sunSprite.scale.setScalar(90);
+    sunSprite.renderOrder = -1;
+    this.scene.add(sunSprite);
+  }
+
+  /** Small ambient touches: chimney smoke and drifting pollen (local only, never sent online). */
+  ambient(dt) {
+    this.ambT = (this.ambT || 0) + dt;
+    if (this.ambT < 0.12) return;
+    this.ambT = 0;
+    const ch = this.island.chimney;
+    if (ch && Math.random() < 0.6) this.particles.emit({ local: true, x: ch.x, y: ch.y, z: ch.z, color: [0xdddddd, 0xbbbbbb, 0xeeeeee], count: 1, speed: 0.6, up: 1.6, size: 0.55, life: 2.4, gravity: -0.4, drag: 0.3, shrink: true });
+    const t = this.controller.camTarget;
+    const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 14;
+    const x = (this.state === 'lobby' ? 0 : t.x) + Math.cos(a) * r, z = (this.state === 'lobby' ? 0 : t.z) + Math.sin(a) * r;
+    const gy = terrainHeight(x, z);
+    if (gy > -Infinity) this.particles.emit({ local: true, x, y: gy + 0.5 + Math.random() * 2.5, z, color: [0xfff6b0, 0xffffff, 0xd8ffb0], count: 1, speed: 0.4, up: 0.2, size: 0.09, life: 4, gravity: -0.05, drag: 0.1, shrink: false });
+    const wf = this.island.waterfall;
+    if (wf && Math.random() < 0.7) this.particles.emit({ local: true, x: wf.x, y: -0.6, z: wf.z, color: [0xffffff, 0xd6f3ff], count: 2, speed: 2, up: 1, size: 0.35, life: 1, gravity: 6, spread: 0.6 });
   }
 
   /** Drops render resolution (then shadows) if the frame rate sags, to hold ~60fps. */
@@ -179,6 +216,7 @@ export class Game {
       const mine = r.cid === myClientId;
       const c = new Character(this, { id: r.id, name: r.name, isPlayer: mine, colors: r.colors });
       c.isBot = false;
+      c.human = r.cid != null;
       c.netDriven = !mine;
       c.spawn(r.pos[0], r.pos[2], r.pos[1]);
       if (!r.alive) { c.alive = false; c.mesh.visible = false; }
@@ -444,6 +482,7 @@ export class Game {
     const verb = cause || (source ? `was wiped out by ${source.label}` : 'was eliminated');
     this.showKill(ch, verb, killer);
     this.net.event('kill', ch.id, verb, killer ? killer.id : -1);
+    if (ch.remote) this.net.playerKnockedOut(ch);
     if (killer && killer !== ch && this.state === 'playing') {
       killer.kills = (killer.kills || 0) + 1;
       this.giveCoins(killer, 10, `Your word got ${ch.name}!`);
@@ -521,9 +560,18 @@ export class Game {
   }
 
   /** What the HUD shows (local simulation, or the host's snapshot when we're a client). */
+  /** My chance (0..1) of being picked as the next Writer, or null if I'm out. */
+  myWriterChance() {
+    if (!this.player.alive) return null;
+    const living = this.characters.filter((c) => c.alive);
+    const humans = living.filter((c) => c.isPlayer || c.remote || c.human).length;
+    return writerChance(living.length, humans, living.length - humans);
+  }
+
   hudData() {
-    if (this.mode === 'client') return this.net.hudData();
+    if (this.mode === 'client') return { ...this.net.hudData(), chance: this.myWriterChance() };
     return {
+      chance: this.myWriterChance(),
       writer: this.writer.statusText(),
       hazards: this.hazards.list.map((h) => ({
         uid: h.uid, icon: h.icon, label: h.label, owner: h.owner ? h.owner.name : '',
@@ -612,6 +660,7 @@ export class Game {
     this.shake *= Math.exp(-5 * dt);
     if (this.shake < 0.01) this.shake = 0;
 
+    this.ambient(dt);
     this.applyEnv(dt);
     this.island.update(dt, this.time);
     this.particles.update(dt);

@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 import { boxGeo, flatMat } from './utils.js';
 
+/** Shared cartoon outline material (inverted hull). */
+export const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x1b1530, side: THREE.BackSide });
+
 /**
  * Blocky humanoid made from boxes. Forward is +Z. Feet at y=0.
- * Returns { group, parts, materials }. If `ownMaterials` is true each part gets
+ * Returns { group, root, parts, materials }. If `ownMaterials` is true each part gets
  * its own material so it can flash red when hurt.
  */
-export function makeHumanoid({ skin = 0xffcc88, shirt = 0x3fa9ff, pants = 0x334488, hat = null, hatStyle = 'cap', scale = 1, ownMaterials = false, eyes = 0x111111 } = {}) {
+export function makeHumanoid({
+  skin = 0xffcc88, shirt = 0x3fa9ff, pants = 0x334488, hat = null, hatStyle = 'cap', hair = 0x4a2f1b,
+  scale = 1, ownMaterials = false, eyes = 0x111111, outline = true, face = true,
+} = {}) {
   const mats = [];
   const mat = (c) => {
     if (!ownMaterials) return flatMat(c);
@@ -19,41 +25,104 @@ export function makeHumanoid({ skin = 0xffcc88, shirt = 0x3fa9ff, pants = 0x3344
   root.scale.setScalar(scale);
   group.add(root);
 
-  const mk = (w, h, d, m) => {
+  // a box with an optional black outline shell (makes the characters pop)
+  const mk = (w, h, d, m, line = false) => {
     const mesh = new THREE.Mesh(boxGeo(w, h, d), m);
     mesh.castShadow = true;
+    if (line && outline) {
+      const o = new THREE.Mesh(boxGeo(w + 0.07, h + 0.07, d + 0.07), OUTLINE_MAT);
+      o.userData.outline = true;
+      mesh.add(o);
+    }
     return mesh;
   };
   const skinM = mat(skin), shirtM = mat(shirt), pantsM = mat(pants);
+  const shade = (c, k) => new THREE.Color(c).multiplyScalar(k).getHex();
 
-  const body = mk(0.9, 0.9, 0.5, shirtM);
+  // torso (slightly wider at the shoulders) + belt
+  const body = new THREE.Group();
   body.position.y = 1.25;
   root.add(body);
+  body.add(mk(0.92, 0.86, 0.5, shirtM, true));
+  const collar = mk(0.5, 0.08, 0.52, mat(shade(shirt, 0.8)));
+  collar.position.y = 0.4;
+  body.add(collar);
+  const belt = mk(0.94, 0.1, 0.52, flatMat(0x2b1d14));
+  belt.position.y = -0.4;
+  body.add(belt);
+  const buckle = mk(0.14, 0.1, 0.04, flatMat(0xffd23f));
+  buckle.position.set(0, -0.4, 0.27);
+  body.add(buckle);
 
-  const head = mk(0.62, 0.62, 0.62, skinM);
+  // head + face
+  const head = mk(0.62, 0.62, 0.62, skinM, true);
   head.position.y = 2.02;
   root.add(head);
-  const eyeM = flatMat(eyes);
-  for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(boxGeo(0.1, 0.14, 0.04), eyeM);
-    e.position.set(0.14 * s, 0.06, 0.32);
-    head.add(e);
+  if (face) {
+    const white = flatMat(0xffffff), dark = flatMat(eyes);
+    for (const sx of [-1, 1]) {
+      const e = new THREE.Mesh(boxGeo(0.13, 0.17, 0.03), white);
+      e.position.set(0.14 * sx, 0.06, 0.315);
+      head.add(e);
+      const p = new THREE.Mesh(boxGeo(0.07, 0.11, 0.03), dark);
+      p.position.set(0.14 * sx + 0.015, 0.05, 0.325);
+      head.add(p);
+      const cheek = new THREE.Mesh(boxGeo(0.09, 0.05, 0.02), flatMat(0xff8fa3));
+      cheek.position.set(0.22 * sx, -0.08, 0.315);
+      head.add(cheek);
+    }
+    const mouth = new THREE.Mesh(boxGeo(0.16, 0.04, 0.02), dark);
+    mouth.position.set(0, -0.14, 0.315);
+    head.add(mouth);
+    mouth.userData.mouth = true;
   }
   if (hat !== null) addHat(head, hatStyle || 'cap', mat(hat), mk);
+  else if (hair !== null) {
+    const hm = flatMat(hair);
+    const top = mk(0.66, 0.14, 0.66, hm);
+    top.position.y = 0.36;
+    head.add(top);
+    const back = mk(0.66, 0.36, 0.12, hm);
+    back.position.set(0, 0.14, -0.3);
+    head.add(back);
+    const fringe = mk(0.5, 0.1, 0.06, hm);
+    fringe.position.set(-0.04, 0.27, 0.31);
+    head.add(fringe);
+  }
 
-  const limb = (x, y, w, h, m) => {
+  // arms: sleeve + forearm + hand, pivoting at the shoulder
+  const arm = (x) => {
     const pivot = new THREE.Group();
-    pivot.position.set(x, y, 0);
-    const mesh = mk(w, h, w, m);
-    mesh.position.y = -h / 2;
-    pivot.add(mesh);
+    pivot.position.set(x, 1.62, 0);
+    const sleeve = mk(0.3, 0.38, 0.3, shirtM, true);
+    sleeve.position.y = -0.16;
+    pivot.add(sleeve);
+    const fore = mk(0.25, 0.36, 0.25, skinM, true);
+    fore.position.y = -0.52;
+    pivot.add(fore);
+    const hand = mk(0.27, 0.16, 0.27, skinM);
+    hand.position.y = -0.76;
+    pivot.add(hand);
     root.add(pivot);
     return pivot;
   };
-  const armL = limb(-0.6, 1.66, 0.28, 0.85, skinM);
-  const armR = limb(0.6, 1.66, 0.28, 0.85, skinM);
-  const legL = limb(-0.22, 0.8, 0.36, 0.8, pantsM);
-  const legR = limb(0.22, 0.8, 0.36, 0.8, pantsM);
+  const armL = arm(-0.62), armR = arm(0.62);
+
+  // legs: trousers + shoes, pivoting at the hip
+  const shoeM = flatMat(0x2d2d3a);
+  const leg = (x) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 0.82, 0);
+    const p = mk(0.36, 0.68, 0.36, pantsM, true);
+    p.position.y = -0.34;
+    pivot.add(p);
+    const shoe = mk(0.4, 0.16, 0.48, shoeM, true);
+    shoe.position.set(0, -0.74, 0.05);
+    pivot.add(shoe);
+    root.add(pivot);
+    return pivot;
+  };
+  const legL = leg(-0.22), legR = leg(0.22);
 
   return { group, root, parts: { body, head, armL, armR, legL, legR }, materials: mats };
 }
@@ -120,6 +189,7 @@ function addHat(head, style, m, mk) {
       break;
     }
     default:
-      at(mk(0.7, 0.18, 0.7, m), 0, 0.38, 0);
+      at(mk(0.7, 0.18, 0.7, m, true), 0, 0.38, 0);
+      at(mk(0.7, 0.07, 0.3, m), 0, 0.31, 0.45);
   }
 }

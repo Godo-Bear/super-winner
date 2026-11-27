@@ -29,6 +29,7 @@ export class UI {
     $('spec-prev').addEventListener('click', () => game.cycleSpectate(-1));
     $('spec-next').addEventListener('click', () => game.cycleSpectate(1));
     $('spec-lobby').addEventListener('click', () => game.toLobby());
+    $('spec-other').addEventListener('click', () => game.net.switchRoom());
     this.refreshMute();
     this.bindWriter();
     this.bindOnline();
@@ -155,6 +156,14 @@ export class UI {
     });
   }
 
+  openOnline(text) {
+    this.showLobby();
+    $('online').classList.remove('hidden');
+    this.onlineStatus(text || '');
+    $('on-code').value = '';
+    $('on-code').focus();
+  }
+
   onlineStatus(text, error = false) {
     $('on-status').textContent = text;
     $('on-status').classList.toggle('red', error);
@@ -273,6 +282,9 @@ export class UI {
     $('alive').textContent = `👥 ${alive} alive`;
     const data = g.hudData();
     $('writer-status').textContent = data.writer;
+    const ch = $('writer-chance');
+    if (data.chance === null || data.chance === undefined) ch.textContent = '';
+    else ch.textContent = `🎲 Your chance to be the next Writer: ${Math.round(data.chance * 100)}%`;
 
     const hz = data.hazards;
     $('hazard-count').textContent = `${hz.length}/${g.hazards.max}`;
@@ -339,7 +351,10 @@ export class UI {
   }
 
   showSpectate(name) {
-    $('spec-lobby').textContent = this.game.net.active ? '🏠 Room' : '🏠 Lobby';
+    const online = this.game.net.active;
+    $('spec-lobby').textContent = online ? '🏠 Room' : '🏠 Lobby';
+    $('spec-other').classList.toggle('hidden', !online || this.game.net.isHost);
+    $('spec-note').textContent = online && !this.game.net.isHost ? "Wait here for the next round, or hop to a different room." : '';
     $('spectate').classList.remove('hidden');
     $('spectate-name').textContent = name;
   }

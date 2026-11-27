@@ -6,6 +6,8 @@ export const HILL = { x: 9, z: -6, r: 9, h: 5.5 };
 export const HUT = { x: -7, z: 5, hx: 3.25, hz: 3.25, h: 3.4 };
 export const KILL_Y = -18;
 
+const PINE_GEO = new THREE.ConeGeometry(1.5, 2.1, 6);
+
 const STEP = 0.4; // how far below a ledge top your feet may be and still climb onto it
 
 /** Smooth terrain height (feet height) or -Infinity when off the island. */
@@ -70,6 +72,7 @@ export class Island {
     this.buildTrees(rng);
     this.buildRocks(rng);
     this.buildSurroundings(rng);
+    this.buildDecor(rng);
   }
 
   buildGround(rng) {
@@ -144,7 +147,127 @@ export class Island {
     const sign = block(1.6, 0.6, 0.12, 0xfff3c4, s.x + s.hx + 0.05, top - 0.75, s.z);
     sign.rotation.y = Math.PI / 2;
     this.group.add(sign);
+    // windows on the side walls
+    for (const side of [-1, 1]) {
+      const wz = s.z + side * (s.hz + 0.03);
+      this.group.add(block(1.2, 0.9, 0.06, 0x2b1d14, s.x - 0.6, 1.9, wz));
+      this.group.add(block(1.0, 0.72, 0.08, 0xa8e0ff, s.x - 0.6, 1.9, wz));
+      this.group.add(block(1.0, 0.07, 0.1, 0x2b1d14, s.x - 0.6, 1.9, wz));
+      this.group.add(block(0.07, 0.72, 0.1, 0x2b1d14, s.x - 0.6, 1.9, wz));
+      this.group.add(block(1.3, 0.12, 0.25, 0x7a4f2a, s.x - 0.6, 1.4, wz + side * 0.1));
+    }
+    // chimney (smokes in game.js)
+    this.group.add(block(0.7, 1.8, 0.7, 0x8d6e63, s.x - 1.2, top + 1.4, s.z - 1.1));
+    this.group.add(block(0.9, 0.2, 0.9, 0x6d4c41, s.x - 1.2, top + 2.35, s.z - 1.1));
+    this.chimney = { x: s.x - 1.2, y: top + 2.5, z: s.z - 1.1 };
+    // lantern by the door
+    this.group.add(block(0.25, 0.35, 0.25, 0xffe066, s.x + s.hx + 0.12, 2.5, s.z + 1.45, false));
+    // stepping-stone path toward the middle of the island
+    for (let i = 0; i < 7; i++) {
+      const k = (i + 1) / 8;
+      const px = s.x + s.hx + 0.8 + (0 - (s.x + s.hx + 0.8)) * k * 0.8 + Math.sin(i * 1.7) * 0.4;
+      const pz = s.z + (0 - s.z) * k * 0.8 + Math.cos(i * 2.3) * 0.4;
+      const st = block(0.9, 0.12, 0.7, i % 2 ? 0xb8b8c0 : 0xa5a5ae, px, terrainHeight(px, pz) + 0.04, pz, false);
+      st.rotation.y = i * 0.7;
+      st.receiveShadow = true;
+      this.group.add(st);
+    }
     this.addShelter({ ...s, name: 'hut' });
+  }
+
+  /** Grass tufts, flowers, hanging roots, a pond and a waterfall. Pure decoration. */
+  buildDecor(rng) {
+    const R = ISLAND_RADIUS;
+    // pick the waterfall spot: the edge point furthest from trees, rocks and the hut
+    let best = 0, bestD = -1;
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const px = Math.cos(a) * (R - 3), pz = Math.sin(a) * (R - 3);
+      let d = Math.hypot(px - HUT.x, pz - HUT.z) - 6;
+      for (const t of this.trees) d = Math.min(d, Math.hypot(px - t.x, pz - t.z) - 3);
+      for (const c of this.colliders) if (c.type === 'circle') d = Math.min(d, Math.hypot(px - c.x, pz - c.z) - c.r - 2.5);
+      if (d > bestD) { bestD = d; best = a; }
+    }
+    const ca = Math.cos(best), sa = Math.sin(best);
+    const water = new THREE.MeshLambertMaterial({ color: 0x4cc3ff, transparent: true, opacity: 0.85, flatShading: true });
+    this.waterMat = water;
+    const pondX = ca * (R - 3.2), pondZ = sa * (R - 3.2);
+    const pond = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.1, 10), water);
+    pond.position.set(pondX, terrainHeight(pondX, pondZ) + 0.06, pondZ);
+    this.group.add(pond);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const st = block(0.6, 0.3, 0.6, 0x9a9aa6, pondX + Math.cos(a) * 2.5, pond.position.y + 0.05, pondZ + Math.sin(a) * 2.5, false);
+      st.rotation.y = a;
+      if (Math.abs(Math.cos(a - best)) < 0.9 || Math.cos(a - best) < 0) this.group.add(st);
+    }
+    const stream = new THREE.Mesh(boxGeo(1.6, 0.1, 3.4), water);
+    stream.position.set(ca * (R - 0.9), pond.position.y, sa * (R - 0.9));
+    stream.rotation.y = Math.atan2(ca, sa);
+    this.group.add(stream);
+    const fall = new THREE.Mesh(boxGeo(1.8, 30, 0.5), water);
+    fall.position.set(ca * (R + 0.35), pond.position.y - 15, sa * (R + 0.35));
+    fall.rotation.y = Math.atan2(ca, sa);
+    this.group.add(fall);
+    this.fallStreaks = [];
+    const foam = flatMat(0xe9f8ff);
+    for (let i = 0; i < 14; i++) {
+      const m = new THREE.Mesh(boxGeo(0.25, 1.6, 0.1), foam);
+      m.userData.off = rng() * 30;
+      m.userData.side = (rng() - 0.5) * 1.5;
+      this.group.add(m);
+      this.fallStreaks.push(m);
+    }
+    this.fall = { x: ca * (R + 0.62), z: sa * (R + 0.62), top: pond.position.y, rot: Math.atan2(ca, sa), tx: -sa, tz: ca };
+    this.waterfall = { x: ca * R, z: sa * R };
+
+    // grass tufts + flowers as two instanced meshes (2 draw calls for ~1300 objects)
+    const tuftGeo = new THREE.ConeGeometry(0.13, 0.32, 4);
+    const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 1100);
+    const flowerGeo = new THREE.BoxGeometry(0.17, 0.17, 0.17);
+    const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshLambertMaterial({ flatShading: true }), 160);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+    const col = new THREE.Color();
+    const blocked = (x, z) => {
+      if (Math.abs(x - HUT.x) < HUT.hx + 0.3 && Math.abs(z - HUT.z) < HUT.hz + 0.3) return true;
+      if (Math.hypot(x - pondX, z - pondZ) < 2.8) return true;
+      for (const c of this.colliders) if (c.type === 'circle' && Math.hypot(x - c.x, z - c.z) < c.r + 0.2) return true;
+      return false;
+    };
+    const place = (mesh, count, yOff, colorFn, scaleFn) => {
+      let n = 0;
+      for (let tries = 0; n < count && tries < count * 4; tries++) {
+        const a = rng() * Math.PI * 2, r = Math.sqrt(rng()) * (R - 0.6);
+        const x = Math.cos(a) * r, z = Math.sin(a) * r;
+        if (blocked(x, z)) continue;
+        e.set((rng() - 0.5) * 0.4, rng() * 3, (rng() - 0.5) * 0.4);
+        q.setFromEuler(e);
+        const s = scaleFn();
+        sc.set(s, s * (0.7 + rng() * 0.6), s);
+        v.set(x, terrainHeight(x, z) + yOff * sc.y, z);
+        m4.compose(v, q, sc);
+        mesh.setMatrixAt(n, m4);
+        mesh.setColorAt(n, colorFn(col));
+        n++;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      this.group.add(mesh);
+    };
+    place(tufts, 1100, 0.13, (c) => c.setHSL(0.26 + rng() * 0.06, 0.55, 0.42 + rng() * 0.1), () => 0.8 + rng() * 0.7);
+    const petals = [0xffffff, 0xffe066, 0xff8fa3, 0xc77dff, 0xff595e, 0x7fd4ff];
+    place(flowers, 160, 0.22, (c) => c.set(petals[Math.floor(rng() * petals.length)]), () => 0.8 + rng() * 0.5);
+
+    // roots and vines dangling under the rim
+    for (let i = 0; i < 48; i++) {
+      const a = (i / 48) * Math.PI * 2 + rng() * 0.1;
+      if (Math.abs(Math.atan2(Math.sin(a - best), Math.cos(a - best))) < 0.12) continue;
+      const rr = R - 0.4 - rng() * 1.2;
+      const len = 1 + rng() * 3.5;
+      const vine = rng() < 0.4;
+      this.group.add(block(vine ? 0.14 : 0.22, len, vine ? 0.14 : 0.22, vine ? 0x3d8b37 : 0x6b4423, Math.cos(a) * rr, -1.3 - len / 2, Math.sin(a) * rr, false));
+    }
   }
 
   /** Registers a walk-in shelter (hut, bunkers). */
@@ -180,13 +303,33 @@ export class Island {
       const g = new THREE.Group();
       g.position.set(x, y, z);
       const trunkH = 2.2 + rng() * 1.2;
+      const pine = rng() < 0.4;
       g.add(block(0.6, trunkH, 0.6, 0x7b5032, 0, trunkH / 2, 0));
-      const leafCols = [0x2f9e44, 0x37b24d, 0x40c057];
-      let ly = trunkH;
-      for (let i = 0; i < 3; i++) {
-        const s = 2.6 - i * 0.7;
-        g.add(block(s, 0.9, s, leafCols[i], 0, ly + 0.35, 0));
-        ly += 0.8;
+      if (pine) {
+        const cols = [0x1f7a3a, 0x24893f, 0x2b9a48];
+        let ly = trunkH * 0.6;
+        for (let i = 0; i < 3; i++) {
+          const c = new THREE.Mesh(PINE_GEO, flatMat(cols[i]));
+          c.scale.setScalar(1.25 - i * 0.28);
+          c.position.y = ly + 1;
+          c.castShadow = c.receiveShadow = true;
+          g.add(c);
+          ly += 1.05;
+        }
+      } else {
+        const leafCols = [0x2f9e44, 0x37b24d, 0x40c057];
+        let ly = trunkH;
+        for (let i = 0; i < 3; i++) {
+          const sz = 2.6 - i * 0.7;
+          g.add(block(sz, 0.9, sz, leafCols[i], 0, ly + 0.35, 0));
+          ly += 0.8;
+        }
+        // a few apples / blossoms for colour
+        const fruit = rng() < 0.5 ? 0xe63946 : 0xffb3c6;
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + rng();
+          g.add(block(0.22, 0.22, 0.22, fruit, Math.cos(a) * 1.32, trunkH + 0.2 + rng() * 0.5, Math.sin(a) * 1.32));
+        }
       }
       g.rotation.y = rng() * Math.PI;
       this.group.add(g);
@@ -220,8 +363,9 @@ export class Island {
 
   buildSurroundings(rng) {
     // sea far below
-    const sea = new THREE.Mesh(new THREE.CircleGeometry(400, 32), new THREE.MeshLambertMaterial({ color: 0x2a8bd8 }));
-    sea.rotation.x = -Math.PI / 2;
+    const seaGeo = new THREE.PlaneGeometry(900, 900, 56, 56).rotateX(-Math.PI / 2);
+    this.seaBase = Float32Array.from(seaGeo.attributes.position.array);
+    const sea = new THREE.Mesh(seaGeo, new THREE.MeshLambertMaterial({ color: 0x2a8bd8, flatShading: true }));
     sea.position.y = -40;
     this.scene.add(sea);
     this.sea = sea;
@@ -263,6 +407,23 @@ export class Island {
       if (c.position.x > 110) c.position.x = -110;
     }
     for (const f of this.floaters) f.position.y += Math.sin(time * 0.6 + f.userData.bob) * dt * 0.3;
+    // gentle sea swell (normals every few frames is plenty for flat shading)
+    const pos = this.sea.geometry.attributes.position, b = this.seaBase;
+    for (let i = 0; i < pos.count; i++) {
+      const x = b[i * 3], z = b[i * 3 + 2];
+      pos.array[i * 3 + 1] = Math.sin(x * 0.035 + time * 0.9) * 1.3 + Math.cos(z * 0.045 + time * 0.7) * 1.1;
+    }
+    pos.needsUpdate = true;
+    if ((this.seaFrame = (this.seaFrame || 0) + 1) % 4 === 0) this.sea.geometry.computeVertexNormals();
+    // waterfall foam streaks
+    const f = this.fall;
+    if (f) {
+      for (const m of this.fallStreaks) {
+        const y = f.top - ((time * 9 + m.userData.off) % 30);
+        m.position.set(f.x + f.tx * m.userData.side, y, f.z + f.tz * m.userData.side);
+        m.rotation.y = f.rot;
+      }
+    }
   }
 
   // ---------------- Queries ----------------

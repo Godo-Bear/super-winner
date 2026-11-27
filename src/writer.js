@@ -6,6 +6,16 @@ export const TURN_INTERVAL = 15;
 export const LATE_INTERVAL = 12; // things speed up after a while
 export const WRITE_TIME = 10;
 
+/**
+ * Chance that one particular living human becomes the next Writer.
+ * Mirrors startTurn(): humans share a boosted slice, bots split the rest.
+ */
+export function writerChance(living, humans, bots) {
+  if (!living || !humans) return 0;
+  const P = Math.min(0.75, humans * Math.max(1 / living, 0.18));
+  return bots > 0 ? P / humans : P / humans + (1 - P) / living;
+}
+
 export const CATEGORY_COLORS = {
   disaster: '#ff8a1f', weather: '#7fd4ff', monster: '#c084fc', weapon: '#ff3b4f',
   nature: '#ffb347', helpful: '#5dff9e', silly: '#ffd23f',
@@ -102,7 +112,7 @@ export class WriterSystem {
     this.turns++;
     // humans get a fair (slightly boosted) shot at writing
     let w;
-    if (humans.length && Math.random() < Math.min(0.75, humans.length * Math.max(1 / living.length, 0.18))) w = pick(humans);
+    if (humans.length && Math.random() < Math.min(0.75, humans.length * Math.max(1 / living.length, 0.18))) w = pick(humans); // keep in sync with writerChance()
     else w = pick(living.filter((c) => c.isBot)) || pick(living);
     this.writer = w;
     this.phase = 'writing';

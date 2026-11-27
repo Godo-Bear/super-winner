@@ -221,3 +221,5 @@ details.field[open] summary { margin-bottom: 6px; }
   #shop { align-items: flex-end; justify-content: center; padding: 8px; }
   .shop-card { max-height: 55vh; }
 }
+#writer-chance { font-weight: 800; font-size: 15px; color: #ffe066; text-shadow: 0 2px 0 var(--ink), 0 0 4px var(--ink); margin-top: 2px; }
+.spec-note { font-size: 13px; opacity: .85; margin-top: 6px; }
