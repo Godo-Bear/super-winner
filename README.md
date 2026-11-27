@@ -54,14 +54,14 @@ fill the remaining spots up to 12. Anyone who joins mid-round spectates until th
 
 ### Put it online (one Cloudflare Worker = the game + the multiplayer server)
 
-Deploying creates one link like `https://super-winner.<you>.workers.dev`. Send it to your friends: it opens the
+Deploying creates one link like `https://super-survival.<you>.workers.dev`. Send it to your friends: it opens the
 game, and **Play with friends** works right away, with no server address to type. It runs on the free Workers plan.
 
 **Option A: no terminal (Cloudflare dashboard)**
 
 1. Sign in at [dash.cloudflare.com](https://dash.cloudflare.com) and verify your email if asked.
 2. Go to **Workers & Pages → Create → Import a repository** and connect GitHub.
-3. Pick the `super-winner` repository. Keep the project name `super-winner` (it must match `wrangler.toml`) and leave the root directory as `/`.
+3. Pick the `super-winner` repository. The Worker name must match `name` in `wrangler.toml` (currently `super-survival`) and leave the root directory as `/`.
 4. Set **Build command** to `npm run build` and **Deploy command** to `npx wrangler deploy`.
 5. Click **Deploy**. When it finishes, open the `workers.dev` link it shows.
 

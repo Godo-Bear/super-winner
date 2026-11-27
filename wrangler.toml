@@ -1,6 +1,6 @@
 # Deploys the whole game (website + online relay) as one Cloudflare Worker.
 #   npm run deploy
-name = "super-winner"
+name = "super-survival"
 main = "worker/src/index.js"
 compatibility_date = "2025-09-01"
 
