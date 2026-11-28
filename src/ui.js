@@ -1,5 +1,6 @@
 import { isWordAllowed } from './filter.js';
 import { describe, suggestExtra, interpret, EXTRA_WORD_COUNT } from './lexicon.js';
+import { powerFor } from './powers.js';
 import { DEFAULT_RELAY } from './net/connection.js';
 import { ITEMS, SLOTS, isOwned, buy, DEFAULT_EQUIPPED } from './shop.js';
 import { writeSave } from './save.js';
@@ -550,14 +551,21 @@ export class UI {
     $('writer-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const v = input.value.trim();
-      if (v && this.onWriterSubmit) this.onWriterSubmit(v);
+      if (v && this.onWriterSubmit) this.onWriterSubmit(v, this.writeForSelf);
+    });
+    // ⚔️ Attack everyone / 🛡️ For me
+    $('write-target').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-target]');
+      if (!b) return;
+      this.setWriteTarget(b.dataset.target === 'self');
+      input.focus();
     });
     $('writer-suggest').addEventListener('click', (e) => {
       const el = e.target.closest('.sug');
       if (!el || !el.dataset.fill) return;
       input.value = el.dataset.fill;
       input.focus();
-      if (this.onWriterSubmit) this.onWriterSubmit(el.dataset.fill);
+      if (this.onWriterSubmit) this.onWriterSubmit(el.dataset.fill, this.writeForSelf);
     });
   }
 
@@ -580,15 +588,32 @@ export class UI {
     let html = this.sugs.map((s, i) => `<span class="sug ${i === this.sugIndex ? 'active' : ''}" data-fill="${esc(s.fill)}">${s.icon} ${esc(s.fill)}</span>`).join('');
     if (v && !isWordAllowed(v)) html += '<span class="sug blocked">🚫 Not allowed</span>';
     else if (v && v.split(' ').length > 2) html += '<span class="sug blocked">Use 1 or 2 words</span>';
-    else if (v && !this.game.words.resolveWord(v)) {
+    else if (v && this.writeForSelf) {
+      const m = interpret(v);
+      if (m?.item) html += `<span class="sug mystery">${m.icon} You get a ${esc(m.label)}!</span>`;
+      else if (m?.hazard === 'mapchange') html += '<span class="sug mystery">🗺️ Changes the map for everyone</span>';
+      else {
+        const p = powerFor(m, v);
+        const what = p.type === 'ride' ? `You drive a ${p.label}!` : p.type === 'morph' ? `You become a ${p.label}!` : 'Shield + speed + health for you!';
+        html += `<span class="sug mystery">🛡️ ${p.icon} ${esc(what)}</span>`;
+      }
+    } else if (v && !this.game.words.resolveWord(v)) {
       const d = describe(v);
       html += d ? `<span class="sug mystery">${d.icon} "${esc(v)}" works!</span>` : `<span class="sug mystery">🫧 "${esc(v)}" = Mystery Blob!</span>`;
     }
     $('writer-suggest').innerHTML = html;
   }
 
+  setWriteTarget(self) {
+    this.writeForSelf = self;
+    document.querySelectorAll('#write-target [data-target]').forEach((b) => b.classList.toggle('on', (b.dataset.target === 'self') === self));
+    this.renderSuggestions();
+  }
+
   openWriter(onSubmit, { noTimer = false } = {}) {
     this.onWriterSubmit = onSubmit;
+    this.writeForSelf = false;
+    document.querySelectorAll('#write-target [data-target]').forEach((b) => b.classList.toggle('on', b.dataset.target === 'attack'));
     $('writer').classList.remove('hidden');
     $('writer-heading').textContent = noTimer ? '🧪 WRITE ANY WORD' : '✍️ YOU ARE THE WRITER!';
     $('writer-time').classList.toggle('hidden', noTimer);

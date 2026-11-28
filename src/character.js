@@ -122,7 +122,7 @@ export class Character {
     const len = Math.hypot(ix, iz);
     if (len > 1) { ix /= len; iz /= len; }
     if (this.tripped > 0) { ix = 0; iz = 0; }
-    const speed = (this.input.sprint ? SPRINT : WALK) * this.mods.speedMul * env.speedMul * (this.speedBoost > 0 ? 1.6 : 1) * (hasPassive(this, 'fast') ? 1.35 : 1);
+    const speed = (this.input.sprint ? SPRINT : WALK) * this.mods.speedMul * env.speedMul * (this.speedBoost > 0 ? 1.6 : 1) * (hasPassive(this, 'fast') ? 1.35 : 1) * (this.power?.speed || 1);
     const friction = Math.min(this.mods.friction, env.friction);
     const rate = this.onGround ? (this.tripped > 0 ? 1.2 : 14 * friction) : 2.4;
     const k = 1 - Math.exp(-rate * dt);
@@ -254,7 +254,7 @@ export class Character {
       const worried = this.hp < 35 || flash > 0 ? -0.4 : -0.12;
       if (f.browL) { f.browL.rotation.z = -worried; f.browR.rotation.z = worried; }
     }
-    this.shieldMesh.visible = this.shield > 0;
+    this.shieldMesh.visible = this.shield > 0 || (this.invincible || 0) > 0;
     if (this.shield > 0) this.shieldMesh.rotation.y += dt * 2;
   }
 }

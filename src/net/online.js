@@ -6,6 +6,7 @@ import { KILL_Y } from '../island.js';
 import { isWordAllowed } from '../filter.js';
 import { lookFromSave, cleanLook } from '../shop.js';
 import { ITEM_IDS } from '../items.js';
+import { powerKey, powerFromKey, showPower, powerAction } from '../powers.js';
 import { angleLerp, clamp } from '../utils.js';
 
 /**
@@ -220,7 +221,11 @@ export class Online {
       }
       return;
     }
-    if (d.t === 'use' && c) { this.game.items.use(c, Number(d.i) || 0); return; }
+    if (d.t === 'use' && c) {
+      if (d.power && c.power?.action) powerAction(this.game, c);
+      else this.game.items.use(c, Number(d.i) || 0);
+      return;
+    }
     if (d.t === 'held' && c) { c.held = Math.max(0, Math.min(2, Number(d.i) || 0)); return; }
     if (d.t === 'in' && c && Array.isArray(d.p) && Array.isArray(d.v)) {
       c.netIn = d;
@@ -229,7 +234,7 @@ export class Online {
       const look = cleanLook(d.c);
       if (p && look) p.look = look;
     } else if (d.t === 'word' && c && typeof d.w === 'string') {
-      this.game.writer.remoteSubmit(c, d.w.slice(0, 24));
+      this.game.writer.remoteSubmit(c, d.w.slice(0, 24), !!d.self);
     }
   }
 
@@ -344,9 +349,9 @@ export class Online {
       tm: Math.round(g.roundTime),
       ch: g.characters.map((c) => [
         c.id, R2(c.pos.x), R2(c.pos.y), R2(c.pos.z), R2(c.yaw), Math.max(0, Math.ceil(c.hp)), c.alive ? 1 : 0,
-        (c.onGround ? 1 : 0) | (c.tripped > 0 ? 2 : 0) | (c.jetpack > 0 && c.input.jumpHeld ? 4 : 0) | (c.shield > 0 ? 8 : 0) | (c.hurtFlash > 0 ? 16 : 0),
+        (c.onGround ? 1 : 0) | (c.tripped > 0 ? 2 : 0) | (c.jetpack > 0 && c.input.jumpHeld ? 4 : 0) | (c.shield > 0 || c.invincible > 0 ? 8 : 0) | (c.hurtFlash > 0 ? 16 : 0),
         R2(c.mods.sink), R2(c.vel.x), R2(c.vel.z), c.emoteId || 0,
-        c.items && c.items[c.held || 0] ? ITEM_IDS.indexOf(c.items[c.held || 0].id) : -1, c.swingT > 0 ? 1 : 0,
+        c.items && c.items[c.held || 0] ? ITEM_IDS.indexOf(c.items[c.held || 0].id) : -1, c.swingT > 0 ? 1 : 0, powerKey(c.power),
       ]),
       env: [R2(e.friction), R2(e.speedMul), R2(e.windX), R2(e.windZ), Math.round(e.fogFar), Math.round(e.fogNear), hex(e.fogColor), hex(e.skyTint), R2(e.light), hex(e.groundTint), R2(e.gravityMul)],
       hud: {
@@ -471,6 +476,7 @@ export class Online {
       const em = row[11] || 0;
       if (em !== (c.emoteId || 0)) { c.emoteId = em; c.emoteT = 0; }
       c.netHeld = row[12] >= 0 ? ITEM_IDS[row[12]] : null;
+      if ((row[14] || '') !== (c.netPowerKey || '')) { c.netPowerKey = row[14] || ''; showPower(c, powerFromKey(c.netPowerKey)); }
       if (row[13] && !(c.swingT > 0)) c.swingT = 0.3;
       if (f & 4 && Math.random() < 0.5) g.particles.emit({ x: c.pos.x, y: c.pos.y + 0.8, z: c.pos.z, color: [0xffa31a, 0xffe066], count: 2, speed: 2, size: 0.25, life: 0.4, gravity: -2 });
     }
@@ -548,6 +554,10 @@ export class Online {
         if (e[1]) g.ui.toast(e[1]);
         break;
       case 'werr': g.ui.writerError(e[1]); break;
+      case 'power':
+        g.player.power = e[1] || null;
+        showPower(g.player, g.player.power);
+        break;
       case 'items':
         g.player.items = Array.isArray(e[1]) ? e[1] : [];
         g.player.held = Math.min(e[2] || 0, Math.max(0, g.player.items.length - 1));
@@ -563,12 +573,12 @@ export class Online {
     this.writerT = 10;
     g.audio.writerTurn();
     g.ui.announce('✍️ You are the', 'WRITER!', 'Type a word. It will come to life!', '#7dffb0');
-    g.ui.openWriter((word) => {
+    g.ui.openWriter((word, forSelf) => {
       const w = word.trim();
       if (w.split(/\s+/).length > 2) return g.ui.writerError('Use 1 or 2 words!');
       if (w.replace(/\s/g, '').length < 2) return g.ui.writerError('Type at least 2 letters!');
       if (!isWordAllowed(w)) { g.audio.hurt(); return g.ui.writerError("🚫 That word isn't allowed. Try another!"); }
-      this.conn.send({ t: 'word', w });
+      this.conn.send({ t: 'word', w, self: !!forSelf });
     });
   }
 
@@ -604,6 +614,7 @@ export class Online {
     }
     this.decoder?.update(dt);
     if (this.writing) {
+      me.invincible = Math.max(me.invincible || 0, 0.3); // shows the bubble while you type (the host keeps you safe)
       this.writerT -= dt;
       g.ui.setWriterTime(this.writerT, this.writerT / 10);
     }

@@ -4,6 +4,7 @@ import { warnCircle, groundY, stepToward } from './common.js';
 import { rand, block, flatMat, makeTextSprite } from '../utils.js';
 import { ITEMS } from '../items.js';
 import { THEMES } from '../island.js';
+import { applyPower, POWER_TIME } from '../powers.js';
 
 const DARK_FOG = new THREE.Color(0x0b0b1e);
 const DARK_SKY = new THREE.Color(0x1a1a3a);
@@ -411,4 +412,26 @@ export class MapChange extends Hazard {
   }
 }
 
-export default { mapchange: MapChange, giveitem: GiveItem, wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };
+// ------------------------------------------------------------------ "FOR ME" POWER ("tank", "lion"... written for yourself)
+export class SelfPower extends Hazard {
+  constructor(game, opts) {
+    super(game, opts);
+    const p = opts.spec?.power || { type: 'buff', icon: '✨', label: 'Power' };
+    const who = opts.owner ? opts.owner.name : 'the Writer';
+    this.recurring = false;
+    this.keepLabel = true;
+    this.duration = p.type === 'buff' ? 3 : POWER_TIME;
+    this.icon = p.icon;
+    this.label = `${p.label} (for ${who})`;
+    this.hint = p.type === 'ride' ? `🛡️ ${who} is driving a ${p.label}!` : p.type === 'morph' ? `🛡️ ${who} turned into a ${p.label}!` : `🛡️ Only ${who} gets this power!`;
+    if (opts.owner) applyPower(game, opts.owner, p);
+    this.audio.powerup();
+  }
+
+  update() {
+    const o = this.opts.owner;
+    if (this.duration > 3 && (!o || !o.alive || !o.power)) this.done = true;
+  }
+}
+
+export default { selfpower: SelfPower, mapchange: MapChange, giveitem: GiveItem, wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };

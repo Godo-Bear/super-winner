@@ -27,6 +27,7 @@ import { MODES, modeOf } from './modes.js';
 import { ensureQuests, trackProgress, questInfo } from './progress.js';
 import { Collectibles } from './collectibles.js';
 import { ItemSystem } from './items.js';
+import { updatePowers, powerAction, endPower, showPower } from './powers.js';
 import * as words from './words.js';
 import { clamp, pick, rand } from './utils.js';
 
@@ -292,7 +293,14 @@ export class Game {
   /** Local player pressed E / USE. Online friends ask the host to do it. */
   useItem(index = this.player.held || 0) {
     const p = this.player;
-    if (!p.alive || !p.items || !p.items[index] || this.paused) return;
+    if (!p.alive || this.paused) return;
+    // driving a tank / being a creature: E is its attack
+    if (p.power && p.power.action) {
+      if (this.mode === 'client') { p.swingT = 0.3; this.net.conn?.send({ t: 'use', power: 1 }); }
+      else powerAction(this, p);
+      return;
+    }
+    if (!p.items || !p.items[index]) return;
     if (this.mode === 'client') {
       p.held = index;
       p.swingT = 0.3;
@@ -363,7 +371,7 @@ export class Game {
     this.deathShown = false;
     this.collectibles.reset();
     this.items.reset();
-    for (const c of this.characters) { c.items = []; c.held = 0; }
+    for (const c of this.characters) { c.items = []; c.held = 0; if (c.power) endPower(this, c); else showPower(c, null); }
     if (this.mapState && (this.mapState.theme !== DEFAULT_MAP.theme || this.mapState.seed !== DEFAULT_MAP.seed)) this.island.applyMap(DEFAULT_MAP.theme, DEFAULT_MAP.seed);
     this.mapState = { ...DEFAULT_MAP };
     this.ui.renderHotbar();
@@ -546,7 +554,8 @@ export class Game {
   /** Deal damage from a hazard. `opts.knock` = {x,y,z}, `opts.cause` = kill feed text. */
   damage(ch, amount, source = null, opts = {}) {
     if (!ch.alive || this.state === 'lobby' || this.state === 'ended' || this.mode === 'client') return 0;
-    if (ch.invincible > 0) return 0; // blessed ("god" etc.)
+    if (ch.invincible > 0) return 0; // blessed ("god") or typing as the Writer
+    if (ch.power && ch.power.armor) amount *= 1 - ch.power.armor; // tanks and creatures are tough
     if (opts.knock) ch.knock(opts.knock.x || 0, opts.knock.y || 0, opts.knock.z || 0);
     if (amount <= 0) return 0;
     if (source) ch.lastHit = { source, time: this.time };
@@ -754,6 +763,7 @@ export class Game {
       this.hazards.update(dt);
       this.collectibles.update(dt);
       this.items.update(dt);
+      updatePowers(this, dt);
       if (this.state === 'playing') this.writer.update(dt);
       for (const c of this.characters) c.update(dt);
       this.separateCharacters();

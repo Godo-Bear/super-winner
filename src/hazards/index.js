@@ -1,5 +1,6 @@
 import { normalizeWord } from '../words.js';
 import { interpret } from '../lexicon.js';
+import { powerFor } from '../powers.js';
 
 /**
  * Hazard registry: maps the `hazard` key used in words.js to a Hazard class.
@@ -45,12 +46,16 @@ export class HazardManager {
   }
 
   /** Turns a typed word into a live hazard. Unknown words become Mystery Blobs. */
-  spawn(rawWord, owner) {
+  spawn(rawWord, owner, { forSelf = false } = {}) {
     const word = normalizeWord(rawWord).split(' ').slice(-2).join(' ') || 'blob';
     // the word brain: dictionary word, describing word + noun, extra words, word parts... or a Mystery Blob
     const meaning = interpret(word);
     let Cls = null, entry = null, spec = null;
     if (meaning?.item) { Cls = REGISTRY.giveitem; spec = { item: meaning.item }; }
+    else if (forSelf && meaning?.hazard !== 'mapchange' && meaning?.hazard !== 'blessing') {
+      // 🛡️ For me: the word becomes a power for the Writer only (ride a tank, become a lion...)
+      Cls = REGISTRY.selfpower; spec = { power: powerFor(meaning, word) };
+    }
     else if (meaning?.entry) { entry = meaning.entry; Cls = REGISTRY[entry.hazard]; }
     else if (meaning?.hazard) { Cls = REGISTRY[meaning.hazard]; spec = meaning.spec; }
     if (!Cls) { Cls = REGISTRY.mystery; entry = null; spec = null; }

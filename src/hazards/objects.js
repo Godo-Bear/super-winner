@@ -105,6 +105,36 @@ export class ObjectRain extends Hazard {
   }
 }
 
+/** Blocky vehicle model (also used when a Writer drives one "for me"). */
+export function makeVehicleModel(s) {
+  const g = new THREE.Group();
+  const body = flatMat(s.color), dark = flatMat(0x222222), glass = flatMat(0xa8e0ff);
+  const len = s.kind === 'bus' ? 5.5 : s.kind === 'truck' ? 4.6 : s.kind === 'bike' ? 1.8 : s.kind === 'train' ? 5 : 3.6;
+  const w = s.kind === 'bike' ? 0.6 : 2;
+  const cars = s.kind === 'train' ? 4 : 1;
+  for (let k = 0; k < cars; k++) {
+    const z0 = -k * (len + 0.4);
+    g.add(block(w, s.kind === 'bike' ? 0.6 : 1.1, len, k === 0 ? body : flatMat(k % 2 ? 0x3d5a80 : s.color), 0, 0.85, z0));
+    // when someone is driving it ("for me"), leave the top open so you can see them
+    if (k === 0 && s.kind !== 'bike' && !s.ridden) g.add(block(w * 0.9, 0.8, len * 0.45, glass, 0, 1.75, z0 + (s.kind === 'bus' || s.kind === 'train' ? 0 : -0.2)));
+    if (s.kind === 'tank' && k === 0) {
+      if (!s.ridden) g.add(block(1.4, 0.6, 1.6, body, 0, 1.75, z0));
+      g.add(block(0.3, 0.3, 2.4, dark, 0, s.ridden ? 1.45 : 1.8, z0 + 1.7));
+    }
+    for (const zz of [len / 2 - 0.6, -len / 2 + 0.6]) for (const sx of [-1, 1]) g.add(block(0.3, 0.7, 0.7, dark, sx * (w / 2 + 0.05), 0.35, z0 + zz));
+  }
+  g.add(block(0.3, 0.2, 0.1, flatMat(0xffe066), -w / 3, 1, len / 2));
+  g.add(block(0.3, 0.2, 0.1, flatMat(0xffe066), w / 3, 1, len / 2));
+  if (!s.ridden) {
+    const tag = makeTextSprite(s.icon, { fontSize: 80, height: 1.2, stroke: '#ffffff' });
+    tag.position.y = 3.2;
+    g.add(tag);
+  }
+  g.userData.length = cars * (len + 0.4);
+  return g;
+}
+
+
 /**
  * Vehicles race across the island along red lanes: cars, buses, trains, tanks...
  * spec: icon, color, kind ('car'|'truck'|'bus'|'train'|'bike'|'tank'), speed, lanes, damage
@@ -123,28 +153,7 @@ export class VehicleRush extends Hazard {
     this.left = s.lanes;
   }
 
-  buildVehicle() {
-    const s = this.spec;
-    const g = new THREE.Group();
-    const body = flatMat(s.color), dark = flatMat(0x222222), glass = flatMat(0xa8e0ff);
-    const len = s.kind === 'bus' ? 5.5 : s.kind === 'truck' ? 4.6 : s.kind === 'bike' ? 1.8 : s.kind === 'train' ? 5 : 3.6;
-    const w = s.kind === 'bike' ? 0.6 : 2;
-    const cars = s.kind === 'train' ? 4 : 1;
-    for (let k = 0; k < cars; k++) {
-      const z0 = -k * (len + 0.4);
-      g.add(block(w, s.kind === 'bike' ? 0.6 : 1.1, len, k === 0 ? body : flatMat(k % 2 ? 0x3d5a80 : s.color), 0, 0.85, z0));
-      if (k === 0 && s.kind !== 'bike') g.add(block(w * 0.9, 0.8, len * 0.45, glass, 0, 1.75, z0 + (s.kind === 'bus' || s.kind === 'train' ? 0 : -0.2)));
-      if (s.kind === 'tank' && k === 0) { g.add(block(1.4, 0.6, 1.6, body, 0, 1.75, z0)); g.add(block(0.3, 0.3, 2.2, dark, 0, 1.8, z0 + 1.6)); }
-      for (const zz of [len / 2 - 0.6, -len / 2 + 0.6]) for (const sx of [-1, 1]) g.add(block(0.3, 0.7, 0.7, dark, sx * (w / 2 + 0.05), 0.35, z0 + zz));
-    }
-    g.add(block(0.3, 0.2, 0.1, flatMat(0xffe066), -w / 3, 1, len / 2));
-    g.add(block(0.3, 0.2, 0.1, flatMat(0xffe066), w / 3, 1, len / 2));
-    const tag = makeTextSprite(s.icon, { fontSize: 80, height: 1.2, stroke: '#ffffff' });
-    tag.position.y = 3.2;
-    g.add(tag);
-    g.userData.length = cars * (len + 0.4);
-    return g;
-  }
+  buildVehicle() { return makeVehicleModel(this.spec); }
 
   startRun() {
     const living = [...this.living()];

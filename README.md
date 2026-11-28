@@ -56,6 +56,12 @@ laptops) and switch off again when you move with the keyboard.
   each level-up pays out coins. See them under **📋 Quests** or in the pause menu.
 * **Emotes**: 1 👋 wave, 2 💃 dance, 3 💪 flex, 4 🌀 spin (or the 😀 button). Others see them online.
 * **Pause** with **P**, **Esc** or ⏸ (single player only; online games can't be paused).
+* **⚔️ Attack or 🛡️ For me**: the Writer box has two buttons. *Attack* unleashes your word on everyone.
+  *For me* turns it into a power just for you: vehicles ("tank", "car", "bus"...) let you drive them (armoured,
+  fast, ram people; tanks fire shells with **E**), creatures ("lion", "dragon"...) turn you into a bigger, tougher
+  version that bites with **E**, anything else gives a shield + speed + health boost. See `src/powers.js`.
+* **Whoever is typing is shielded** (bubble shield, can't be hurt) until their word lands.
+* **Weapons can knock players out**: swords, hammers, snowballs, tank shells, bites and rams all count as your kill.
 * **Ask for items**: write an item name and only *you* get it (up to 3 in the hotbar; **E** use, **Q** switch, USE on touch):
   🗡️ sword · 🔨 hammer · ❄️ snowballs · 🩹 medkit · 🌀 teleporter · 🍌 trap · 👟 boots (double jump) ·
   🦘 pogo (super jump) · ☂️ umbrella (float, blocks acid rain) · 🛹 skateboard (faster). Items live in `src/items.js`.

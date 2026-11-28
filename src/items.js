@@ -3,6 +3,9 @@ import { block, flatMat, boxGeo, makeTextSprite } from './utils.js';
 import { terrainHeight } from './island.js';
 import { groundY } from './hazards/common.js';
 
+/** "your sword" for you, "Noodle's sword" for others. */
+const whose = (c) => (c.name === 'You' ? 'your' : `${c.name}'s`);
+
 /**
  * ITEMS — things a Writer can ask for. Typing an item word gives it to the Writer only.
  * Hold up to 3. E (or the USE button) uses the selected one, Q switches.
@@ -12,9 +15,9 @@ import { groundY } from './hazards/common.js';
  *   uses     how many times it can be used (Infinity = forever)
  */
 export const ITEMS = {
-  sword: { name: 'Sword', icon: '🗡️', words: ['sword', 'swords', 'katana', 'blade', 'saber', 'lightsaber', 'dagger'], kind: 'melee', uses: Infinity, cooldown: 0.55, damage: 12, knock: 15, range: 2.8 },
-  hammer: { name: 'Hammer', icon: '🔨', words: ['hammer', 'hammers', 'mallet', 'ban hammer'], kind: 'slam', uses: Infinity, cooldown: 1.6, damage: 14, knock: 18, range: 4 },
-  snowball: { name: 'Snowballs', icon: '❄️', words: ['snowball', 'snowballs'], kind: 'throw', uses: 12, cooldown: 0.35, damage: 7, knock: 10 },
+  sword: { name: 'Sword', icon: '🗡️', words: ['sword', 'swords', 'katana', 'blade', 'saber', 'lightsaber', 'dagger'], kind: 'melee', uses: Infinity, cooldown: 0.5, damage: 26, knock: 15, range: 2.8 },
+  hammer: { name: 'Hammer', icon: '🔨', words: ['hammer', 'hammers', 'mallet', 'ban hammer'], kind: 'slam', uses: Infinity, cooldown: 1.4, damage: 30, knock: 18, range: 4 },
+  snowball: { name: 'Snowballs', icon: '❄️', words: ['snowball', 'snowballs'], kind: 'throw', uses: 12, cooldown: 0.35, damage: 14, knock: 10 },
   medkit: { name: 'Medkit', icon: '🩹', words: ['medkit', 'medkits', 'bandage', 'bandaid', 'band aid', 'first aid'], kind: 'heal', uses: 3, cooldown: 1, amount: 40 },
   teleporter: { name: 'Teleporter', icon: '🌀', words: ['teleporter', 'teleport', 'portal', 'blink', 'warp'], kind: 'blink', uses: 4, cooldown: 0.8, range: 9 },
   trap: { name: 'Peel Trap', icon: '🍌', words: ['trap', 'traps', 'peel trap', 'banana trap'], kind: 'trap', uses: 5, cooldown: 0.5 },
@@ -118,7 +121,7 @@ export class ItemSystem {
     if (!it || it.passive) return;
     if ((c.itemCd || 0) > g.time) return;
     c.itemCd = g.time + it.cooldown;
-    const src = { owner: c, label: it.name, killVerb: `got bonked by ${c.name}'s ${it.name.toUpperCase()}` };
+    const src = { owner: c, label: it.name, killVerb: `got bonked by ${whose(c)} ${it.name.toUpperCase()}` };
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
     c.swingT = 0.3;
     if (it.kind === 'melee') {
@@ -142,10 +145,7 @@ export class ItemSystem {
       g.audio.explosion(0.6);
       g.addShake(0.4, c.pos.x, c.pos.z);
     } else if (it.kind === 'throw') {
-      const mesh = new THREE.Mesh(ballGeo, flatMat(0xffffff));
-      mesh.position.set(c.pos.x + fx * 0.8, c.pos.y + 1.7, c.pos.z + fz * 0.8);
-      this.group.add(mesh);
-      this.balls.push({ mesh, vx: fx * 26 + c.vel.x * 0.5, vy: 4, vz: fz * 26 + c.vel.z * 0.5, life: 1.6, owner: c, src, it });
+      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.7, z: c.pos.z + fz * 0.8 }, { vx: fx * 26 + c.vel.x * 0.5, vy: 4, vz: fz * 26 + c.vel.z * 0.5 }, { damage: it.damage, knock: it.knock, src });
       g.audio.pop();
     } else if (it.kind === 'heal') {
       c.hp = Math.min(100, c.hp + it.amount);
@@ -180,6 +180,15 @@ export class ItemSystem {
     this.sync(c);
   }
 
+  /** Launch a projectile (snowballs, tank shells). opts: damage, knock, src, explode (radius), color, size */
+  fire(owner, from, v, opts) {
+    const mesh = new THREE.Mesh(ballGeo, flatMat(opts.color ?? 0xffffff));
+    mesh.scale.setScalar(opts.size || 1);
+    mesh.position.set(from.x, from.y, from.z);
+    this.group.add(mesh);
+    this.balls.push({ mesh, vx: v.vx, vy: v.vy, vz: v.vz, life: 1.8, owner, src: opts.src, it: { damage: opts.damage, knock: opts.knock }, explode: opts.explode || 0 });
+  }
+
   update(dt) {
     const g = this.game;
     for (let i = this.balls.length - 1; i >= 0; i--) {
@@ -194,10 +203,11 @@ export class ItemSystem {
         if (o === b.owner || !o.alive) continue;
         if (Math.abs(p.x - o.pos.x) < 0.6 && Math.abs(p.z - o.pos.z) < 0.6 && p.y > o.pos.y && p.y < o.pos.y + 2.4) {
           const l = Math.hypot(b.vx, b.vz) || 1;
-          g.damage(o, b.it.damage, b.src, { knock: { x: (b.vx / l) * b.it.knock, y: 4, z: (b.vz / l) * b.it.knock } });
+          if (!b.explode) g.damage(o, b.it.damage, b.src, { knock: { x: (b.vx / l) * b.it.knock, y: 4, z: (b.vz / l) * b.it.knock } });
           hit = true;
         }
       }
+      if (hit && b.explode) g.explode(p.x, p.y - 0.5, p.z, b.explode, b.it.damage, b.src, { knock: b.it.knock });
       if (hit) {
         g.particles.emit({ x: p.x, y: p.y, z: p.z, color: [0xffffff, 0xd8f3ff], count: 8, speed: 3, size: 0.18, life: 0.4 });
         this.group.remove(b.mesh);

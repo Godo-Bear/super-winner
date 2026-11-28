@@ -97,14 +97,14 @@ export class WriterSystem {
   freeWrite() {
     const g = this.game;
     if (!g.modeCfg.sandbox || g.state !== 'playing' || this.playerWriting) return;
-    g.ui.openWriter((word) => {
+    g.ui.openWriter((word, forSelf) => {
       const w = word.trim();
       if (w.split(/\s+/).length > 2) return g.ui.writerError('Use 1 or 2 words!');
       if (w.replace(/\s/g, '').length < 2) return g.ui.writerError('Type at least 2 letters!');
       if (!isWordAllowed(w)) return g.ui.writerError("🚫 That word isn't allowed. Try another!");
       g.ui.closeWriter();
       this.freeWriting = false;
-      const h = g.hazards.spawn(w, g.player);
+      const h = g.hazards.spawn(w, g.player, { forSelf });
       if (h) g.announceWord(g.player, h);
     }, { noTimer: true });
     this.freeWriting = true;
@@ -122,12 +122,15 @@ export class WriterSystem {
   }
 
   update(dt) {
+    if (this.freeWriting && this.game.player.alive) this.game.player.invincible = Math.max(this.game.player.invincible || 0, 0.25);
     if (this.phase === 'waiting') {
       this.timer -= dt;
       if (this.timer <= 0) this.startTurn();
     } else if (this.phase === 'writing') {
       this.elapsed += dt;
       this.writeT -= dt;
+      // whoever is typing is safe inside a bubble shield
+      if (this.writer && this.writer.alive) this.writer.invincible = Math.max(this.writer.invincible || 0, 0.25);
       if (!this.writer.alive) {
         // the writer died mid-sentence: their word still lands (chaos!)
         const human = this.playerWriting || this.remoteWriting;
@@ -176,7 +179,7 @@ export class WriterSystem {
     if (w.isPlayer) {
       this.playerWriting = true;
       this.writeT = this.writeTime;
-      g.ui.openWriter((word) => this.playerSubmit(word));
+      g.ui.openWriter((word, forSelf) => this.playerSubmit(word, forSelf));
       g.ui.announce('✍️ You are the', 'WRITER!', 'Type a word. It will come to life!', '#7dffb0');
     } else if (w.remote) {
       this.playerWriting = false;
@@ -194,7 +197,7 @@ export class WriterSystem {
 
 
   /** Player pressed GO: any word is allowed unless it is inappropriate. */
-  playerSubmit(word) {
+  playerSubmit(word, forSelf = false) {
     const w = word.trim();
     if (w.split(/\s+/).length > 2) {
       this.game.ui.writerError('Use 1 or 2 words!');
@@ -209,21 +212,21 @@ export class WriterSystem {
       this.game.audio.hurt();
       return;
     }
-    this.submit(w);
+    this.submit(w, forSelf);
   }
 
   /** An online friend sent their word. */
-  remoteSubmit(ch, word) {
+  remoteSubmit(ch, word, forSelf = false) {
     if (this.phase !== 'writing' || !this.remoteWriting || this.writer !== ch) return;
     const w = word.trim();
     if (w.split(/\s+/).length > 2) return this.game.net.sendDirect(ch.clientId, 'werr', 'Use 1 or 2 words!');
     if (w.replace(/\s/g, '').length < 2) return this.game.net.sendDirect(ch.clientId, 'werr', 'Type at least 2 letters!');
     if (!isWordAllowed(w)) return this.game.net.sendDirect(ch.clientId, 'werr', "🚫 That word isn't allowed. Try another!");
     this.game.net.sendDirect(ch.clientId, 'wclose', '');
-    this.submit(w);
+    this.submit(w, forSelf);
   }
 
-  submit(word) {
+  submit(word, forSelf = false) {
     if (this.phase !== 'writing') return;
     const g = this.game;
     if (this.playerWriting) g.ui.closeWriter();
@@ -232,7 +235,9 @@ export class WriterSystem {
     this.detachBubble();
     this.phase = 'waiting';
     this.timer = Math.max(3, this.interval - this.elapsed);
-    const h = g.hazards.spawn(word, this.writer);
+    // bots sometimes keep a vehicle / creature for themselves
+    if (this.writer.isBot && !forSelf && Math.random() < 0.15) forSelf = true;
+    const h = g.hazards.spawn(word, this.writer, { forSelf });
     if (!h) return;
     this.lastSpawn = h;
     g.announceWord(this.writer, h);

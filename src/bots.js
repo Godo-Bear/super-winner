@@ -1,4 +1,5 @@
 import { ISLAND_RADIUS, terrainHeight } from './island.js';
+import { powerAction } from './powers.js';
 import { pick, rand } from './utils.js';
 
 export const BOT_NAMES = [
@@ -149,6 +150,16 @@ function think(bot, game) {
 
   // items they asked for
   if (bot.items && bot.items.length && Math.random() < 0.5) useBotItems(bot, game, av);
+  // a tank fires at people in range; a creature bites whoever is close
+  if (bot.power?.action) {
+    const near = game.nearestCharacter(p.x, p.z, (c) => c !== bot);
+    const d = near ? Math.hypot(near.pos.x - p.x, near.pos.z - p.z) : 99;
+    const range = bot.power.action === 'shell' ? 18 : 2.8;
+    if (near && d < range && Math.random() < 0.35) {
+      bot.yaw = Math.atan2(near.pos.x - p.x, near.pos.z - p.z);
+      powerAction(game, bot);
+    }
+  }
 
   // jetpack: rescue from falling off, or climb when told to get high
   const ground = terrainHeight(p.x, p.z);
