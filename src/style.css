@@ -325,3 +325,24 @@ body.touch-mode #hotbar .hb-hint { display: none; }
 .login-tabs .on { background: var(--yellow); }
 #login-form { display: flex; flex-direction: column; gap: 8px; }
 #login-status { min-height: 20px; text-align: center; font-weight: 800; margin: 0; }
+
+/* ---------- Lobby fits short windows (laptops with a taskbar, browser sidebars) ---------- */
+#lobby { overflow-y: auto; align-items: safe center; }
+.lobby-card { margin: auto 0; }
+@media (max-height: 860px) {
+  .title { font-size: clamp(40px, 9vh, 80px); -webkit-text-stroke-width: 3px; text-shadow: 0 5px 0 var(--ink); }
+  .subtitle { font-size: clamp(18px, 3.6vh, 28px); margin-top: 2px; }
+  .tagline { font-size: 15px; margin: 6px auto; }
+  .coins-big { font-size: 28px; }
+  .lobby-stats { font-size: 13px; margin-bottom: 8px; }
+  .mode-picker { margin: 2px 0 8px; }
+  .mode-picker > * { padding-top: 6px !important; padding-bottom: 6px !important; }
+  .mode-picker small, .mode-picker p, .mode-picker .mode-desc { font-size: 12px; }
+  .lobby-buttons { gap: 8px; }
+  .lobby-buttons .btn { font-size: 18px; padding: 7px 14px; }
+  .lobby-buttons .btn-play { font-size: 24px; padding: 8px 26px; }
+}
+@media (max-height: 680px) {
+  .tagline { display: none; }
+  .mode-picker small, .mode-picker p, .mode-picker .mode-desc { display: none; }
+}
