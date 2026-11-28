@@ -338,12 +338,15 @@ export class Blessing extends Hazard {
     this.hint = `😇 Only ${opts.owner ? opts.owner.name : 'the Writer'} is blessed!`;
     this.killVerb = 'was outshone by a BLESSING';
     const w = opts.owner;
+    const long = !!opts.spec?.long; // "unlimited power"
+    if (long) { this.icon = '♾️'; this.duration = 24; }
     this.target = w && w.alive ? w : null;
     if (this.target) {
       w.hp = 100;
       w.shield = Math.max(w.shield, 100);
-      w.invincible = 10;
-      game.notify(w, '😇 BLESSED! Invincible for 10 seconds!', 'powerup');
+      w.invincible = long ? 20 : 10;
+      if (long) { w.speedBoost = Math.max(w.speedBoost, 20); w.jetpack = Math.max(w.jetpack, 15); }
+      game.notify(w, long ? '♾️ UNLIMITED POWER! Invincible, fast and flying for 20 seconds!' : '😇 BLESSED! Invincible for 10 seconds!', 'powerup');
     }
     this.halo = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.07, 6, 18), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
     this.halo.rotation.x = Math.PI / 2;
@@ -380,7 +383,7 @@ export class GiveItem extends Hazard {
     this.label = it ? it.name : 'Item';
     this.hint = `🎁 Only ${opts.owner ? opts.owner.name : 'the Writer'} gets it!`;
     if (it && opts.owner && opts.owner.alive) {
-      game.items.give(opts.owner, id);
+      game.items.give(opts.owner, id, { unlimited: !!opts.spec?.unlimited });
       const p = opts.owner.pos;
       this.particles.emit({ x: p.x, y: p.y + 1.5, z: p.z, color: [0xffe066, 0xffffff, 0xc77dff], count: 24, speed: 5, up: 3, size: 0.25, life: 0.7 });
     }
@@ -424,6 +427,7 @@ export class SelfPower extends Hazard {
     this.icon = p.icon;
     this.label = `${p.label} (for ${who})`;
     this.hint = p.type === 'ride' ? `🛡️ ${who} is driving a ${p.label}!` : p.type === 'morph' ? `🛡️ ${who} turned into a ${p.label}!` : `🛡️ Only ${who} gets this power!`;
+    if (opts.spec?.unlimited) p.time = 60; // "unlimited tank" lasts much longer
     if (opts.owner) applyPower(game, opts.owner, p);
     this.audio.powerup();
   }
@@ -434,4 +438,29 @@ export class SelfPower extends Hazard {
   }
 }
 
-export default { selfpower: SelfPower, mapchange: MapChange, giveitem: GiveItem, wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };
+// ------------------------------------------------------------------ CLEAR MAP ("clear map", "stop", "clean up"...)
+export class ClearMap extends Hazard {
+  constructor(game, opts) {
+    super(game, opts);
+    this.duration = 2;
+    this.recurring = false;
+    this.keepLabel = true;
+    this.icon = '🧹';
+    this.label = 'Clear Map';
+    this.hint = '🧹 Every hazard is gone... for now!';
+    // sweep away every other hazard, trap and leftover
+    for (const h of [...game.hazards.list]) if (h !== this) game.hazards.remove(h);
+    game.items.reset();
+    for (const c of game.characters) { c.frozen = 0; c.tripped = 0; }
+    game.ui.countdown('');
+    game.ui.flash('#ffffff', 0.7, 900);
+    for (let i = 0; i < 40; i++) {
+      const p = this.island.randomPoint(0, this.R - 3, { avoidHut: false, scale: false });
+      this.particles.emit({ x: p.x, y: 1 + Math.random() * 3, z: p.z, color: [0xffffff, 0xfff6b0, 0x7fd4ff], count: 2, speed: 3, up: 3, size: 0.3, life: 1 });
+    }
+    this.audio.tone({ freq: 1200, to: 300, type: 'triangle', dur: 0.6, vol: 0.15 });
+    this.audio.whoosh();
+  }
+}
+
+export default { clearmap: ClearMap, selfpower: SelfPower, mapchange: MapChange, giveitem: GiveItem, wind: Wind, lowgravity: LowGravity, darkness: Darkness, magnet: Magnet, gas: PoisonGas, disco: Disco, slowmo: SlowMo, ufo: Ufo, blessing: Blessing };

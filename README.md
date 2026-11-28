@@ -64,7 +64,13 @@ laptops) and switch off again when you move with the keyboard.
 * **Weapons can knock players out**: swords, hammers, snowballs, tank shells, bites and rams all count as your kill.
 * **Ask for items**: write an item name and only *you* get it (up to 3 in the hotbar; **E** use, **Q** switch, USE on touch):
   🗡️ sword · 🔨 hammer · ❄️ snowballs · 🩹 medkit · 🌀 teleporter · 🍌 trap · 👟 boots (double jump) ·
-  🦘 pogo (super jump) · ☂️ umbrella (float, blocks acid rain) · 🛹 skateboard (faster). Items live in `src/items.js`.
+  🦘 pogo (super jump) · ☂️ umbrella (float, blocks acid rain) · 🛹 skateboard (faster) · 🏹 bow · 🪃 boomerang ·
+  🧊 freeze ray · 🌬️ leaf blower · 🪄 magic wand · 🧥 invisibility cloak · 🪝 grappling hook · 💣 grenades.
+  Items live in `src/items.js`.
+* **More words**: "unlimited" (before an item it never runs out, before a creature you get loads, on its own it's
+  a super blessing for the Writer), anime-style types (fighter/"anime" and mecha fire energy beams, samurai,
+  magical girl, kaiju, kitsune, chibi, sensei... famous names map to an original type, not a copy), and
+  **"clear map"** / "clear" / "stop" wipes every active hazard.
 * **Change the map with words**: "new map" reshuffles the whole island; "desert", "snow land", "jungle",
   "candy land", "autumn"/"halloween", "mars", "tropical"/"beach" (or "<theme> map/world/island") re-theme it.
   Themes live in `THEMES` in `src/island.js`. A new round starts on the normal map again.

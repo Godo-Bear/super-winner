@@ -73,7 +73,7 @@ export function applyPower(game, c, p) {
     game.notify(c, `${p.icon} ${p.label} power-up! Shield + speed + health`, 'powerup');
     return;
   }
-  c.power = { ...p, t: POWER_TIME };
+  c.power = { ...p, t: p.time || POWER_TIME };
   showPower(c, c.power);
   const how = p.type === 'ride' ? (p.action ? 'Drive it! Press E to fire' : 'Drive it and ram people!') : 'Press E to bite!';
   game.notify(c, `${p.icon} You are a ${p.label.toUpperCase()}! ${how}`, 'powerup');

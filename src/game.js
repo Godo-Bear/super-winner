@@ -695,6 +695,7 @@ export class Game {
     let best = null, bd = Infinity;
     for (const c of this.characters) {
       if (!c.alive || (filter && !filter(c))) continue;
+      if (c.items && c.items.some((i) => i.id === 'cloak')) continue; // invisibility cloak: monsters can't find you
       const d = Math.hypot(c.pos.x - x, c.pos.z - z);
       if (d < bd) { bd = d; best = c; }
     }

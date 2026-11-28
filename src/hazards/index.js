@@ -51,10 +51,10 @@ export class HazardManager {
     // the word brain: dictionary word, describing word + noun, extra words, word parts... or a Mystery Blob
     const meaning = interpret(word);
     let Cls = null, entry = null, spec = null;
-    if (meaning?.item) { Cls = REGISTRY.giveitem; spec = { item: meaning.item }; }
-    else if (forSelf && meaning?.hazard !== 'mapchange' && meaning?.hazard !== 'blessing') {
+    if (meaning?.item) { Cls = REGISTRY.giveitem; spec = { item: meaning.item, unlimited: !!meaning.unlimited }; }
+    else if (forSelf && !['mapchange', 'blessing', 'clearmap'].includes(meaning?.hazard)) {
       // 🛡️ For me: the word becomes a power for the Writer only (ride a tank, become a lion...)
-      Cls = REGISTRY.selfpower; spec = { power: powerFor(meaning, word) };
+      Cls = REGISTRY.selfpower; spec = { power: powerFor(meaning, word), unlimited: !!meaning?.spec?.unlimited };
     }
     else if (meaning?.entry) { entry = meaning.entry; Cls = REGISTRY[entry.hazard]; }
     else if (meaning?.hazard) { Cls = REGISTRY[meaning.hazard]; spec = meaning.spec; }

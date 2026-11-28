@@ -24,6 +24,14 @@ export const ITEMS = {
   boots: { name: 'Bounce Boots', icon: '👟', words: ['boots', 'boot', 'sneakers', 'double jump', 'trainers', 'jump boots'], passive: 'doublejump', uses: Infinity },
   pogo: { name: 'Pogo Stick', icon: '🦘', words: ['pogo', 'pogo stick', 'super jump'], passive: 'superjump', uses: Infinity },
   umbrella: { name: 'Umbrella', icon: '☂️', words: ['umbrella', 'umbrellas', 'parasol', 'parachute'], passive: 'glide', uses: Infinity },
+  bow: { name: 'Bow', icon: '🏹', words: ['bow', 'bow and arrow', 'arrows', 'arrow', 'crossbow', 'slingshot'], kind: 'throw', uses: 15, cooldown: 0.5, damage: 22, knock: 8, speed: 40, lob: 1.5, color: 0x8d6e63, size: 0.6 },
+  boomerang: { name: 'Boomerang', icon: '🪃', words: ['boomerang', 'boomerangs', 'frisbee'], kind: 'boomerang', uses: Infinity, cooldown: 1.2, damage: 18, knock: 10, range: 13 },
+  freeze: { name: 'Freeze Ray', icon: '🧊', words: ['freeze ray', 'freeze gun', 'ice ray', 'freezer gun', 'freeze blaster', 'ice gun'], kind: 'freeze', uses: 8, cooldown: 0.8, damage: 8, time: 2.5 },
+  blower: { name: 'Leaf Blower', icon: '🌬️', words: ['leaf blower', 'blower', 'hair dryer', 'wind gun', 'air cannon', 'fan gun'], kind: 'push', uses: Infinity, cooldown: 1, damage: 5, knock: 24, range: 7 },
+  wand: { name: 'Magic Wand', icon: '🪄', words: ['wand', 'magic wand', 'staff', 'magic staff', 'spell', 'spells', 'spellbook'], kind: 'wand', uses: 8, cooldown: 1 },
+  cloak: { name: 'Invisibility Cloak', icon: '🧥', words: ['invisibility cloak', 'cloak', 'invisibility', 'invisible cloak', 'camouflage', 'camo'], passive: 'invisible', uses: Infinity },
+  grapple: { name: 'Grappling Hook', icon: '🪝', words: ['grappling hook', 'grapple', 'hook', 'grappling', 'rope', 'web shooter'], kind: 'grapple', uses: 10, cooldown: 0.8, range: 20 },
+  grenade: { name: 'Grenades', icon: '💣', words: ['grenade', 'grenades', 'bomb item', 'water balloon', 'water balloons'], kind: 'throw', uses: 4, cooldown: 1, damage: 35, knock: 14, explode: 3.2, speed: 18, lob: 8, color: 0x2f3e2f, size: 1.2 },
   skateboard: { name: 'Skateboard', icon: '🛹', words: ['skateboard', 'skateboards', 'skates', 'rollerblades', 'scooter', 'roller skates'], passive: 'fast', uses: Infinity },
 };
 export const ITEM_IDS = Object.keys(ITEMS);
@@ -91,17 +99,18 @@ export class ItemSystem {
   }
 
   /** Give an item to a character (only them). */
-  give(c, id) {
+  give(c, id, { unlimited = false } = {}) {
     if (!ITEMS[id] || !c) return;
     c.items ||= [];
+    const uses = unlimited ? Infinity : ITEMS[id].uses;
     const have = c.items.find((i) => i.id === id);
-    if (have) have.uses = ITEMS[id].uses;
+    if (have) have.uses = uses;
     else {
       if (c.items.length >= MAX_ITEMS) c.items.shift();
-      c.items.push({ id, uses: ITEMS[id].uses });
+      c.items.push({ id, uses });
       c.held = c.items.length - 1;
     }
-    this.game.notify(c, `🎁 You got: ${ITEMS[id].icon} ${ITEMS[id].name}!${ITEMS[id].passive ? '' : ' Press E to use'}`, 'powerup');
+    this.game.notify(c, `🎁 You got: ${unlimited ? '♾️ UNLIMITED ' : ''}${ITEMS[id].icon} ${ITEMS[id].name}!${ITEMS[id].passive ? '' : ' Press E to use'}`, 'powerup');
     this.sync(c);
   }
 
@@ -145,21 +154,51 @@ export class ItemSystem {
       g.audio.explosion(0.6);
       g.addShake(0.4, c.pos.x, c.pos.z);
     } else if (it.kind === 'throw') {
-      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.7, z: c.pos.z + fz * 0.8 }, { vx: fx * 26 + c.vel.x * 0.5, vy: 4, vz: fz * 26 + c.vel.z * 0.5 }, { damage: it.damage, knock: it.knock, src });
+      const sp = it.speed || 26;
+      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.7, z: c.pos.z + fz * 0.8 }, { vx: fx * sp + c.vel.x * 0.5, vy: it.lob ?? 4, vz: fz * sp + c.vel.z * 0.5 }, { damage: it.damage, knock: it.knock, src, explode: it.explode, color: it.color, size: it.size });
       g.audio.pop();
+    } else if (it.kind === 'boomerang') {
+      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.5, z: c.pos.z + fz * 0.8 }, { vx: fx * 20, vy: 0, vz: fz * 20 }, { damage: it.damage, knock: it.knock, src, color: 0xc68642, size: 1.1, boomerang: it.range });
+      g.audio.whoosh();
+    } else if (it.kind === 'freeze') {
+      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.6, z: c.pos.z + fz * 0.8 }, { vx: fx * 34, vy: 0.5, vz: fz * 34 }, { damage: it.damage, knock: 2, src, color: 0x9fe8ff, size: 0.9, freeze: it.time });
+      g.audio.tone({ freq: 1800, to: 600, type: 'sine', dur: 0.25, vol: 0.12 });
+    } else if (it.kind === 'push') {
+      for (const o of g.characters) {
+        if (o === c || !o.alive) continue;
+        const dx = o.pos.x - c.pos.x, dz = o.pos.z - c.pos.z, d = Math.hypot(dx, dz);
+        if (d > it.range || Math.abs(o.pos.y - c.pos.y) > 3 || (dx * fx + dz * fz) / (d || 1) < 0.5) continue;
+        g.damage(o, it.damage, src, { knock: { x: fx * it.knock, y: 7, z: fz * it.knock } });
+      }
+      g.particles.emit({ x: c.pos.x + fx, y: c.pos.y + 1.4, z: c.pos.z + fz, color: [0xffffff, 0xd8f3ff, 0x8bc34a], count: 18, speed: 16, size: 0.2, life: 0.5, gravity: 0, drag: 0.5, dir: { x: fx, y: 0.1, z: fz }, cone: 0.35 });
+      g.audio.whoosh();
+    } else if (it.kind === 'wand') {
+      const spell = ['heal', 'shield', 'zap', 'zap', 'blink'][Math.floor(Math.random() * 5)];
+      g.particles.burst(c.pos.x, c.pos.y + 2, c.pos.z, [0xc77dff, 0xffe066, 0x7fd4ff], 16, 4, 0.22, 0.6);
+      if (spell === 'heal') { c.hp = Math.min(100, c.hp + 35); g.notify(c, '🪄 Healing spell! +35 HP', 'powerup'); }
+      else if (spell === 'shield') { c.shield = Math.max(c.shield, 50); g.notify(c, '🪄 Shield spell!', 'powerup'); }
+      else if (spell === 'blink') { this.useKind(c, 'blink', 10); g.notify(c, '🪄 Teleport spell!'); }
+      else {
+        const t = g.nearestCharacter(c.pos.x, c.pos.z, (o) => o !== c);
+        if (t && Math.hypot(t.pos.x - c.pos.x, t.pos.z - c.pos.z) < 14) {
+          g.damage(t, 28, src, { knock: { x: 0, y: 8, z: 0 } });
+          g.particles.emit({ x: t.pos.x, y: t.pos.y + 1.5, z: t.pos.z, color: [0xc77dff, 0xffffff], count: 18, speed: 6, size: 0.25, life: 0.5 });
+          g.audio.zap();
+        } else g.notify(c, '🪄 Fizzle... nobody in range');
+      }
+    } else if (it.kind === 'grapple') {
+      let d = it.range;
+      while (d > 3 && terrainHeight(c.pos.x + fx * d, c.pos.z + fz * d) === -Infinity) d -= 1;
+      c.vel.x = fx * d * 1.3; c.vel.z = fz * d * 1.3; c.vel.y = 9;
+      c.onGround = false;
+      g.audio.tone({ freq: 300, to: 900, type: 'square', dur: 0.2, vol: 0.08 });
+      g.particles.emit({ x: c.pos.x + fx * d, y: groundY(c.pos.x + fx * d, c.pos.z + fz * d) + 0.5, z: c.pos.z + fz * d, color: [0x8d6e63, 0xffffff], count: 8, speed: 3, size: 0.2, life: 0.5 });
     } else if (it.kind === 'heal') {
       c.hp = Math.min(100, c.hp + it.amount);
       g.notify(c, `🩹 +${it.amount} HP`, 'eat');
       g.particles.emit({ x: c.pos.x, y: c.pos.y + 1.2, z: c.pos.z, color: [0x3ddc84, 0xffffff], count: 14, speed: 3, up: 2, size: 0.25, life: 0.7, gravity: -1 });
     } else if (it.kind === 'blink') {
-      let dist = it.range;
-      while (dist > 1 && terrainHeight(c.pos.x + fx * dist, c.pos.z + fz * dist) === -Infinity) dist -= 1;
-      g.particles.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, [0xc77dff, 0x7fd4ff, 0xffffff], 18, 5, 0.25, 0.5);
-      c.pos.x += fx * dist; c.pos.z += fz * dist;
-      c.pos.y = Math.max(c.pos.y, terrainHeight(c.pos.x, c.pos.z) + 0.5);
-      c.vel.y = Math.max(c.vel.y, 0);
-      g.particles.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, [0xc77dff, 0x7fd4ff, 0xffffff], 18, 5, 0.25, 0.5);
-      g.audio.tone({ freq: 400, to: 1400, type: 'sine', dur: 0.25, vol: 0.15 });
+      this.useKind(c, 'blink', it.range);
     } else if (it.kind === 'trap') {
       const x = c.pos.x - fx * 1.5, z = c.pos.z - fz * 1.5;
       if (terrainHeight(x, z) > -Infinity) {
@@ -186,7 +225,25 @@ export class ItemSystem {
     mesh.scale.setScalar(opts.size || 1);
     mesh.position.set(from.x, from.y, from.z);
     this.group.add(mesh);
-    this.balls.push({ mesh, vx: v.vx, vy: v.vy, vz: v.vz, life: 1.8, owner, src: opts.src, it: { damage: opts.damage, knock: opts.knock }, explode: opts.explode || 0 });
+    this.balls.push({
+      mesh, vx: v.vx, vy: v.vy, vz: v.vz, life: opts.boomerang ? 3 : 1.8, owner, src: opts.src, it: { damage: opts.damage, knock: opts.knock },
+      explode: opts.explode || 0, freeze: opts.freeze || 0, boomerang: opts.boomerang || 0, travelled: 0, hitSet: new Set(),
+    });
+  }
+
+  /** Shared effects reused by several items. */
+  useKind(c, kind, range) {
+    const g = this.game;
+    if (kind !== 'blink') return;
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+    let dist = range;
+    while (dist > 1 && terrainHeight(c.pos.x + fx * dist, c.pos.z + fz * dist) === -Infinity) dist -= 1;
+    g.particles.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, [0xc77dff, 0x7fd4ff, 0xffffff], 18, 5, 0.25, 0.5);
+    c.pos.x += fx * dist; c.pos.z += fz * dist;
+    c.pos.y = Math.max(c.pos.y, terrainHeight(c.pos.x, c.pos.z) + 0.5);
+    c.vel.y = Math.max(c.vel.y, 0);
+    g.particles.burst(c.pos.x, c.pos.y + 1.2, c.pos.z, [0xc77dff, 0x7fd4ff, 0xffffff], 18, 5, 0.25, 0.5);
+    g.audio.tone({ freq: 400, to: 1400, type: 'sine', dur: 0.25, vol: 0.15 });
   }
 
   update(dt) {
@@ -194,17 +251,30 @@ export class ItemSystem {
     for (let i = this.balls.length - 1; i >= 0; i--) {
       const b = this.balls[i];
       b.life -= dt;
-      b.vy -= 14 * dt;
       const p = b.mesh.position;
+      if (b.boomerang) {
+        // fly out, then curve back to whoever threw it
+        b.travelled += Math.hypot(b.vx, b.vz) * dt;
+        b.mesh.rotation.y += dt * 20;
+        if (b.travelled > b.boomerang && b.owner.alive) {
+          const dx = b.owner.pos.x - p.x, dz = b.owner.pos.z - p.z, d = Math.hypot(dx, dz) || 1;
+          b.vx += ((dx / d) * 22 - b.vx) * Math.min(1, dt * 4);
+          b.vz += ((dz / d) * 22 - b.vz) * Math.min(1, dt * 4);
+          p.y += (b.owner.pos.y + 1.5 - p.y) * Math.min(1, dt * 4);
+          if (d < 1.2) b.life = 0;
+        }
+      } else b.vy -= 14 * dt;
       p.x += b.vx * dt; p.y += b.vy * dt; p.z += b.vz * dt;
-      let hit = b.life <= 0 || g.island.pointSolid(p.x, p.y, p.z);
+      let hit = b.life <= 0 || (!b.boomerang && g.island.pointSolid(p.x, p.y, p.z));
       for (const o of g.characters) {
         if (hit) break;
-        if (o === b.owner || !o.alive) continue;
-        if (Math.abs(p.x - o.pos.x) < 0.6 && Math.abs(p.z - o.pos.z) < 0.6 && p.y > o.pos.y && p.y < o.pos.y + 2.4) {
+        if (o === b.owner || !o.alive || b.hitSet.has(o)) continue;
+        if (Math.abs(p.x - o.pos.x) < 0.7 && Math.abs(p.z - o.pos.z) < 0.7 && p.y > o.pos.y && p.y < o.pos.y + 2.4) {
           const l = Math.hypot(b.vx, b.vz) || 1;
           if (!b.explode) g.damage(o, b.it.damage, b.src, { knock: { x: (b.vx / l) * b.it.knock, y: 4, z: (b.vz / l) * b.it.knock } });
-          hit = true;
+          if (b.freeze && o.alive) { o.frozen = Math.max(o.frozen || 0, b.freeze); g.notify(o, '🧊 You are frozen!'); }
+          b.hitSet.add(o);
+          if (!b.boomerang) hit = true;
         }
       }
       if (hit && b.explode) g.explode(p.x, p.y - 0.5, p.z, b.explode, b.it.damage, b.src, { knock: b.it.knock });

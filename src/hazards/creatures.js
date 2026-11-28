@@ -22,6 +22,7 @@ const HINTS = {
   dive: 'It dives at the red circles!',
   leap: 'It leaps at you. Watch the circles!',
   shoot: 'It shoots! Dodge the circles, use cover!',
+  beam: 'It charges an energy beam! Get off the red line!',
 };
 
 export class Creature extends Hazard {
@@ -35,7 +36,7 @@ export class Creature extends Hazard {
     this.killVerb = `got got by ${/^[aeiou]/i.test(this.label) ? 'an' : 'a'} ${this.label.toUpperCase()}`;
     this.drops = new Drops(this);
     this.mobs = [];
-    const n = s.behavior === 'swarm' ? Math.max(5, s.count) : s.count;
+    const n = Math.min(12, s.behavior === 'swarm' ? Math.max(5, s.count) : s.count);
     for (let i = 0; i < n; i++) this.spawnMob(i);
     if (s.sound) this.audio[s.sound]?.(s.pitch || 1);
     else this.audio.roar(Math.max(0.5, 1.6 - s.size * 0.4));
@@ -172,6 +173,7 @@ export class Creature extends Hazard {
       else if (behave === 'charge') moving = this.charge(m, target, dt);
       else if (behave === 'leap') moving = this.leap(m, target, dt);
       else if (behave === 'shoot') moving = this.shoot(m, target, dt);
+      else if (behave === 'beam') moving = this.beam(m, target, dt);
       else moving = this.chase(m, target, dt);
       // contact damage for swarms and touching anything big
       if ((behave === 'swarm' || s.size >= 2) && m.cd <= 0 && m.state === 'go') {
@@ -376,6 +378,74 @@ export class Creature extends Hazard {
       m.timer = rand(0.8, 1.6);
     }
     return 1;
+  }
+
+  /** Anime-style: power up (red line), then fire a big energy beam along it. */
+  beam(m, target, dt) {
+    const s = this.spec;
+    m.y = groundY(m.x, m.z);
+    if (m.state === 'go') {
+      if (!target) return 0;
+      const d = Math.hypot(target.pos.x - m.x, target.pos.z - m.z);
+      this.face(m, target.pos.x, target.pos.z, dt);
+      let moving = 0;
+      if (d > 11) { stepToward(m, target.pos.x, target.pos.z, s.speed, dt); moving = 1; }
+      if (m.timer <= 0 && d < 20) {
+        const dx = target.pos.x - m.x, dz = target.pos.z - m.z, l = d || 1;
+        m.dir = { x: dx / l, z: dz / l };
+        m.yaw = Math.atan2(m.dir.x, m.dir.z);
+        m.len = 22;
+        const ex = m.x + m.dir.x * m.len, ez = m.z + m.dir.z * m.len;
+        m.strip = warnStrip(this.group, m.x, m.z, ex, ez, 2.4 * s.size);
+        m.lineThreats = [0.2, 0.45, 0.7, 0.95].map((k) => ({ type: 'avoid', x: m.x + (ex - m.x) * k, z: m.z + (ez - m.z) * k, radius: 1.6 * s.size }));
+        m.state = 'charge_up';
+        m.timer = 1.2;
+        this.audio.tone({ freq: 200, to: 900, type: 'sawtooth', dur: 1.2, vol: 0.08, vibrato: 20 });
+      }
+      return moving;
+    }
+    if (m.state === 'charge_up') {
+      for (const t of m.lineThreats) this.threats.push(t);
+      const hx = m.x + m.dir.x * 0.8 * s.size, hz = m.z + m.dir.z * 0.8 * s.size;
+      this.particles.emit({ x: hx, y: m.y + 1.4 * s.size, z: hz, color: [s.shot || 0x7fd4ff, 0xffffff], count: 2, speed: 2, size: 0.3, life: 0.3, gravity: 0, spread: 0.6 });
+      if (m.timer <= 0) {
+        m.state = 'firing';
+        m.timer = 0.6;
+        m.hitSet = new Set();
+        const geo = new THREE.CylinderGeometry(0.5 * s.size, 0.5 * s.size, m.len, 8, 1, true).rotateX(Math.PI / 2).translate(0, 0, m.len / 2);
+        m.beamMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: s.shot || 0x7fd4ff, transparent: true, opacity: 0.85 }));
+        this.track(geo); this.track(m.beamMesh.material);
+        m.beamMesh.position.set(m.x, m.y + 1.3 * s.size, m.z);
+        m.beamMesh.rotation.y = m.yaw;
+        this.group.add(m.beamMesh);
+        this.audio.zap();
+        this.game.addShake(0.4, m.x, m.z);
+      }
+      return 0;
+    }
+    if (m.state === 'firing') {
+      for (const t of m.lineThreats) this.threats.push(t);
+      m.beamMesh.scale.set(1 + Math.sin(this.t * 40) * 0.1, 1 + Math.sin(this.t * 40) * 0.1, 1);
+      for (const c of this.living()) {
+        if (m.hitSet.has(c)) continue;
+        const rx = c.pos.x - m.x, rz = c.pos.z - m.z;
+        const along = rx * m.dir.x + rz * m.dir.z;
+        const side = Math.abs(-rx * m.dir.z + rz * m.dir.x);
+        if (along > 0 && along < m.len && side < 1.2 * s.size && c.pos.y < m.y + 3 * s.size) {
+          m.hitSet.add(c);
+          this.hit(c, s.damage * 1.4, { knock: { x: m.dir.x * 16, y: 8, z: m.dir.z * 16 } });
+        }
+      }
+      if (m.timer <= 0) {
+        this.group.remove(m.beamMesh);
+        this.group.remove(m.strip);
+        m.state = 'go';
+        m.timer = rand(2.2, 3.2);
+      }
+      return 0;
+    }
+    m.state = 'go';
+    return 0;
   }
 
   /** Keep some distance and lob projectiles at red circles (wizards, robots, aliens...). */

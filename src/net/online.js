@@ -366,7 +366,7 @@ export class Online {
       snap.cr[c.id] = {
         dp: corr.dp.map(R2), dv: corr.dv.map(R2),
         m: [R2(c.mods.speedMul), R2(c.mods.friction), R2(c.mods.jumpMul), R2(c.mods.sink)],
-        tr: R2(c.tripped), jp: R2(c.jetpack), sb: R2(c.speedBoost), sh: Math.ceil(c.shield),
+        tr: R2(c.tripped), jp: R2(c.jetpack), sb: R2(c.speedBoost), sh: Math.ceil(c.shield), fz: R2(c.frozen || 0),
       };
       c.corr = { dp: [0, 0, 0], dv: [0, 0, 0] };
     }
@@ -494,6 +494,7 @@ export class Online {
       me.jetpack = cr.jp;
       me.speedBoost = cr.sb;
       me.shield = cr.sh;
+      me.frozen = cr.fz || 0;
     }
     if (s.env) this.env = s.env;
     if (s.hud) this.hud = s.hud;

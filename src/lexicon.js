@@ -33,6 +33,7 @@ const T = {
   person: { hazard: 'creature', body: 'human', behavior: 'chase', size: 1, speed: 4.8, count: 3, damage: 18 },
   brute: { hazard: 'creature', body: 'human', behavior: 'chase', size: 2.2, speed: 3.4, count: 1, damage: 35 },
   caster: { hazard: 'creature', body: 'human', behavior: 'shoot', size: 1, speed: 4, count: 2, damage: 24 },
+  blaster: { hazard: 'creature', body: 'human', behavior: 'beam', size: 1, speed: 4.6, count: 2, damage: 28 },
   // things that fall (hazards/objects.js)
   thing: { hazard: 'objectrain', size: 1.6, damage: 22, rate: 0.35, total: 26, radius: 1.4, land: 'gone' },
   heavy: { hazard: 'objectrain', size: 2.6, damage: 55, rate: 0.7, total: 12, radius: 2.4, land: 'gone', heavy: true },
@@ -48,6 +49,7 @@ const T = {
   gas: { hazard: 'gas' }, disco: { hazard: 'disco' }, slowmo: { hazard: 'slowmo' }, ufo: { hazard: 'ufo' }, blessing: { hazard: 'blessing' },
   // the island itself ("new map", "desert"...)
   newmap: { hazard: 'mapchange', theme: 'random', reshuffle: true },
+  clearmap: { hazard: 'clearmap' },
   maptheme: { hazard: 'mapchange' },
 };
 
@@ -196,7 +198,7 @@ const LEX = [
   [['dice', 'die'], '🎲', 'thing'],
   [['key', 'keys'], '🔑', 'thing', { damage: 15, size: 1.1 }],
   [['axe', 'wrench', 'tool', 'tools'], '🔨', 'thing', { damage: 28 }],
-  [['dynamite', 'tnt', 'grenade', 'explosion', 'explosive'], '🧨', 'boom'],
+  [['dynamite', 'tnt', 'explosion', 'explosive'], '🧨', 'boom'],
   [['firework', 'fireworks'], '🎆', 'boom', { damage: 20 }],
   [['printer', 'printers', 'microwave', 'oven', 'washing machine'], '🖨️', 'heavy', { damage: 40 }],
   [['toaster', 'toasters'], '🍞', 'thing', { damage: 24 }],
@@ -256,6 +258,23 @@ const LEX = [
   [['party', 'disco', 'dance', 'dancing', 'music', 'song', 'rave', 'concert', 'rainbow'], '🪩', 'disco'],
   [['slow', 'slowmo', 'slow motion', 'time', 'sleep', 'sleepy', 'lazy', 'tired', 'boring'], '🐌', 'slowmo'],
   [['ufo', 'ufos', 'spaceship', 'flying saucer', 'abduction'], '🛸', 'ufo'],
+  // ---------------- anime-style types (names become an original look-alike-free type) ----------------
+  [['anime', 'anime character', 'anime hero', 'fighter', 'martial artist', 'super fighter', 'kung fu', 'monk', 'goku', 'vegeta', 'gohan', 'saitama', 'deku', 'all might', 'ichigo', 'tanjiro', 'jojo'], '🥋', 'blaster', { color: 0xff8c00, color2: 0x1d3557, hair: 0x111111, shot: 0x7fd4ff }],
+  [['samurai', 'ronin', 'swordsman', 'zoro', 'katana warrior', 'shogun'], '⚔️', 'person', { color: 0x3a0ca3, color2: 0x222222, hair: 0x111111, speed: 6.6, damage: 26, count: 3 }],
+  [['magical girl', 'magic girl', 'sailor moon', 'madoka', 'idol', 'pop star'], '🌟', 'caster', { color: 0xff70a6, color2: 0xffffff, hair: 0xffd23f, shot: 0xff70a6 }],
+  [['mecha', 'mech', 'giant robot', 'robot suit', 'eva', 'transformer', 'transformers', 'megazord'], '🦾', 'blaster', { body: 'human', size: 2.2, count: 1, color: 0x9aa0a8, color2: 0x3a86ff, skin: 0xb0b0b8, hair: null, damage: 34, speed: 3.4, shot: 0xff3b4f }],
+  [['kaiju', 'godzilla', 'mothra', 'kong kaiju'], '🦖', 'charger', { color: 0x2f4f2f, color2: 0x6b8e23, size: 3.2, count: 1, damage: 45, speed: 3.6 }],
+  [['yokai', 'oni', 'demon', 'demons', 'akuma'], '👹', 'person', { color: 0x7b1e1e, color2: 0x222222, skin: 0xd62828, hair: 0x111111, damage: 24, speed: 5.4 }],
+  [['kitsune', 'fox spirit', 'spirit fox', 'nine tails', 'spirit', 'spirits'], '🦊', 'flyer', { color: 0xf28c28, color2: 0xffffff, count: 3 }],
+  [['chibi', 'chibis', 'kawaii', 'cute anime'], '🍡', 'person', { color: 0xff8fd8, color2: 0x7fd4ff, size: 0.55, count: 7, damage: 8, speed: 5 }],
+  [['sensei', 'master', 'shifu', 'kakashi'], '🧘', 'blaster', { color: 0x556b2f, color2: 0x333333, hair: 0xdddddd, shot: 0xffe066 }],
+  [['naruto', 'sasuke', 'shinobi', 'hokage', 'kunoichi'], '🥷', 'person', { color: 0x1d3557, color2: 0x222222, speed: 6.6, hat: 0x1d3557, hatStyle: 'cap' }],
+  [['luffy', 'straw hat', 'pirate king'], '🏴‍☠️', 'person', { color: 0xd62828, color2: 0x3a86ff, hat: 0xf4c542, hatStyle: 'tophat', speed: 5.8 }],
+  [['pikachu', 'pokemon', 'electric mouse', 'electric critter'], '⚡', 'bug', { color: 0x7fd4ff, color2: 0x3a86ff, damage: 10 }],
+  [['totoro', 'forest spirit', 'big fluffy'], '🌳', 'beast', { color: 0x8d8d99, color2: 0xf2f2f2, size: 2.2, count: 1, damage: 10, speed: 3 }],
+  [['senpai', 'otaku', 'weeb', 'student', 'students', 'class rep'], '🎌', 'person', { color: 0x1d3557, color2: 0x333333, hair: 0x111111 }],
+  // ---------------- clear everything ----------------
+  [['clear map', 'clear', 'clean', 'clean up', 'clear all', 'clear everything', 'remove', 'stop', 'reset', 'undo', 'peace', 'calm', 'nothing', 'delete', 'erase', 'vanish', 'no hazards', 'clear hazards', 'cleanse', 'purify'], '🧹', 'clearmap'],
   // ---------------- the map itself ----------------
   [['new map', 'map', 'change map', 'new island', 'new world', 'another map', 'different map', 'next map', 'random map', 'reset map', 'map change', 'teleport map', 'shuffle', 'remix', 'new level', 'level'], '🗺️', 'newmap'],
   [['grassland', 'normal map', 'classic map', 'default map', 'original map', 'meadow'], '🌳', 'maptheme', { theme: 'grass' }],
@@ -268,6 +287,7 @@ const LEX = [
   [['tropical', 'beach', 'paradise', 'hawaii', 'summer', 'vacation', 'holiday'], '🏝️', 'maptheme', { theme: 'tropical' }],
   // only helps the Writer
   [['god', 'gods', 'goddess', 'angel', 'angels', 'immortal', 'invincible', 'superpower', 'superpowers', 'blessing', 'blessed', 'miracle', 'holy', 'heaven', 'divine', 'godmode', 'god mode'], '😇', 'blessing'],
+  [['unlimited', 'unlimited power', 'infinite', 'infinite power', 'infinity', 'limitless', 'unstoppable', 'ultimate power', 'max power'], '♾️', 'blessing', { long: true }],
 ];
 
 // ---------- describing words (first word of a 2-word phrase) ----------
@@ -280,6 +300,7 @@ const MODS = {
   angry: { damage: 1.4, speed: 1.15 }, evil: 'angry', mad: 'angry', killer: 'angry', scary: 'angry', crazy: 'angry', zombie: { color: 0x7bc46a, speed: 0.75, damage: 1.2 },
   cute: { damage: 0.4 }, friendly: 'cute', nice: 'cute', happy: 'cute', fluffy: 'cute', silly: 'cute',
   golden: { color: 0xffc300, golden: true }, gold: 'golden', shiny: 'golden',
+  unlimited: { count: 3, unlimited: true }, infinite: 'unlimited', infinity: 'unlimited', endless: 'unlimited', limitless: 'unlimited', forever: 'unlimited',
   many: { count: 2 }, lots: 'many', double: 'many', two: 'many', three: { count: 3 }, million: { count: 3 }, army: 'many',
   robot: { color: 0x9aa0a8 }, mecha: 'robot', metal: 'robot', ghost: { color: 0xeeeeff, speed: 1.1 }, invisible: 'ghost', rainbow: { color: 0xc77dff }, flying: { flying: true },
   red: { color: 0xd62828 }, blue: { color: 0x3a86ff }, green: { color: 0x3ddc84 }, yellow: { color: 0xffd23f }, purple: { color: 0x8338ec },
@@ -335,6 +356,7 @@ function applyMod(spec, mod) {
   if (mod.fire) spec.fire = true;
   if (mod.flying && spec.hazard === 'creature') { spec.behavior = 'dive'; }
   if (mod.golden && spec.hazard === 'objectrain') spec.land = 'coin';
+  if (mod.unlimited) spec.unlimited = true;
   if (mod.size && spec.hazard === 'objectrain') { spec.radius = (spec.radius ?? 1.4) * Math.sqrt(mod.size); if (mod.size > 1) spec.heavy = true; }
   return spec;
 }
@@ -357,9 +379,13 @@ export function interpret(raw) {
   const full = words.join(' ');
   const label = cap(full);
 
-  // 0. an item the Writer asks for ("sword", "boots"...) — only they get it
+  // 0. an item the Writer asks for ("sword", "boots"...) — only they get it. "unlimited snowballs" never runs out.
   const itemId = itemForWord(full);
   if (itemId) return { item: itemId, label: ITEMS[itemId].name, icon: ITEMS[itemId].icon };
+  if (words.length === 2 && modFor(words[0])?.unlimited && itemForWord(words[1])) {
+    const id = itemForWord(words[1]);
+    return { item: id, unlimited: true, label: `Unlimited ${ITEMS[id].name}`, icon: ITEMS[id].icon };
+  }
 
   // 0b. "<theme> map/world/land/island" → change the island
   if (words.length === 2 && MAP_NOUNS.has(words[1])) {

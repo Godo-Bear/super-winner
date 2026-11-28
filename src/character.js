@@ -110,6 +110,7 @@ export class Character {
   update(dt) {
     if (!this.alive) return;
     this.invincible = Math.max(0, (this.invincible || 0) - dt);
+    this.frozen = Math.max(0, (this.frozen || 0) - dt);
     // online: remote humans (on the host) and everyone else (on clients) are moved by the network
     if (this.remote || this.netDriven) { this.updateVisual(dt); return; }
     const game = this.game, env = game.env;
@@ -121,7 +122,7 @@ export class Character {
     let ix = this.input.x, iz = this.input.z;
     const len = Math.hypot(ix, iz);
     if (len > 1) { ix /= len; iz /= len; }
-    if (this.tripped > 0) { ix = 0; iz = 0; }
+    if (this.tripped > 0 || this.frozen > 0) { ix = 0; iz = 0; }
     const speed = (this.input.sprint ? SPRINT : WALK) * this.mods.speedMul * env.speedMul * (this.speedBoost > 0 ? 1.6 : 1) * (hasPassive(this, 'fast') ? 1.35 : 1) * (this.power?.speed || 1);
     const friction = Math.min(this.mods.friction, env.friction);
     const rate = this.onGround ? (this.tripped > 0 ? 1.2 : 14 * friction) : 2.4;
@@ -131,7 +132,7 @@ export class Character {
 
     if (this.onGround) this.airJumps = 0;
     const canDouble = !this.onGround && hasPassive(this, 'doublejump') && (this.airJumps || 0) < 1;
-    if (this.input.jump && (this.onGround || canDouble) && this.tripped <= 0) {
+    if (this.input.jump && (this.onGround || canDouble) && this.tripped <= 0 && !(this.frozen > 0)) {
       if (!this.onGround) { this.airJumps = (this.airJumps || 0) + 1; game.particles.emit({ x: this.pos.x, y: this.pos.y, z: this.pos.z, color: [0xffffff, 0x7fd4ff], count: 8, speed: 3, size: 0.2, life: 0.4 }); }
       this.vel.y = JUMP_V * this.mods.jumpMul * (hasPassive(this, 'superjump') ? 1.55 : 1);
       this.onGround = false;
@@ -241,7 +242,14 @@ export class Character {
     this.mesh.position.set(this.pos.x, this.pos.y - this.mods.sink, this.pos.z);
     this.mesh.rotation.set(this.tripped > 0 ? -1.2 : 0, this.yaw + this.spin + emoteSpin, 0);
     const flash = this.hurtFlash > 0 ? this.hurtFlash * 4 : 0;
-    for (const m of this.model.materials) m.emissive.setRGB(flash, 0, 0);
+    const ice = (this.frozen || 0) > 0 ? 0.45 : 0;
+    // invisibility cloak: see-through for everyone
+    const cloaked = hasPassive(this, 'invisible') || this.netHeld === 'cloak';
+    for (const m of this.model.materials) {
+      m.emissive.setRGB(flash, ice * 0.6, ice);
+      if (m.transparent !== cloaked) { m.transparent = cloaked; m.needsUpdate = true; }
+      m.opacity = cloaked ? 0.25 : 1;
+    }
     parts.head.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 14; });
     // face: blink every few seconds, "ouch" when hurt, worried brows when low on HP
     const f = parts.face;
