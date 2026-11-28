@@ -18,7 +18,7 @@ import sillyHazards from './hazards/silly.js';
 import creatureHazards from './hazards/creatures.js';
 import objectHazards from './hazards/objects.js';
 import effectHazards from './hazards/effects.js';
-import { WriterSystem, CATEGORY_COLORS, writerChance } from './writer.js';
+import { WriterSystem, CATEGORY_COLORS } from './writer.js';
 import { UI, esc } from './ui.js';
 import { Online } from './net/online.js';
 import { loadSave, writeSave } from './save.js';
@@ -27,6 +27,7 @@ import { MODES, modeOf } from './modes.js';
 import { ensureQuests, trackProgress, questInfo } from './progress.js';
 import { Collectibles } from './collectibles.js';
 import { ItemSystem } from './items.js';
+import { Account } from './account.js';
 import { updatePowers, powerAction, endPower, showPower } from './powers.js';
 import * as words from './words.js';
 import { clamp, pick, rand } from './utils.js';
@@ -79,6 +80,7 @@ export class Game {
     this.writer = new WriterSystem(this);
     this.controller = new PlayerController(this);
     this.ui = new UI(this);
+    this.account = new Account(this);
     this.net = new Online(this);
     this.collectibles = new Collectibles(this);
     this.items = new ItemSystem(this);
@@ -100,6 +102,7 @@ export class Game {
     this.fpsFrames = 0; this.fpsTime = 0; this.fps = 60;
     renderer.setAnimationLoop(() => this.tick());
     this.ui.showLobby();
+    this.account.refresh(); // optional account: pull the cloud save if logged in
   }
 
   buildSkyAndLights() {
@@ -706,9 +709,8 @@ export class Game {
   /** My chance (0..1) of being picked as the next Writer, or null if I'm out. */
   myWriterChance() {
     if (!this.player.alive || this.modeCfg.sandbox) return null;
-    const living = this.characters.filter((c) => c.alive);
-    const humans = living.filter((c) => c.isPlayer || c.remote || c.human).length;
-    return writerChance(living.length, humans, living.length - humans);
+    if (this.mode === 'client') return this.net.hud?.wc?.[this.player.id] ?? null;
+    return this.writer.chanceFor(this.player);
   }
 
   hudData() {

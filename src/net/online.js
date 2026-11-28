@@ -356,6 +356,7 @@ export class Online {
       env: [R2(e.friction), R2(e.speedMul), R2(e.windX), R2(e.windZ), Math.round(e.fogFar), Math.round(e.fogNear), hex(e.fogColor), hex(e.skyTint), R2(e.light), hex(e.groundTint), R2(e.gravityMul)],
       hud: {
         ph: g.writer.phase, wid: g.writer.writer ? g.writer.writer.id : -1, wt: Math.ceil(g.writer.timer),
+        wc: Object.fromEntries([...g.writer.chances()].filter(([c]) => c.remote).map(([c, p]) => [c.id, Math.round(p * 1000) / 1000])),
         hz: g.hazards.list.map((h) => [h.uid, h.icon, h.label, h.owner ? h.owner.name : '', R2(clamp(1 - h.t / h.duration, 0, 1)), h.recharging ? 1 : 0]),
       },
       cr: {},

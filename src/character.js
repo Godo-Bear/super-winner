@@ -35,6 +35,7 @@ export class Character {
     this.input = { x: 0, z: 0, sprint: false, jump: false, jumpHeld: false };
     this.mods = { speedMul: 1, friction: 1, jumpMul: 1, sink: 0 };
     this.setName(name);
+    this.setPet(colors.pet);
     this.alive = false;
   }
 
@@ -48,6 +49,18 @@ export class Character {
     this.mesh.add(fresh.root);
     this.model = { ...fresh, group: this.mesh };
     this.colors = colors;
+    this.setPet(colors.pet);
+  }
+
+  /** A little pet that floats next to you (coin shop). */
+  setPet(icon) {
+    if (this.petIcon === icon) return;
+    if (this.pet) { this.mesh.remove(this.pet); this.pet.userData.dispose?.(); this.pet = null; }
+    this.petIcon = icon || null;
+    if (!icon) return;
+    this.pet = makeTextSprite(icon, { fontSize: 90, height: 0.75, stroke: '#ffffff' });
+    this.pet.position.set(0.95, 2.1, -0.3);
+    this.mesh.add(this.pet);
   }
 
   setName(name) {
@@ -251,6 +264,8 @@ export class Character {
       m.opacity = cloaked ? 0.25 : 1;
     }
     parts.head.children.forEach((c) => { if (c.userData.spin) c.rotation.y += dt * 14; });
+    if (this.pet) this.pet.position.y = 2.1 + Math.sin(t * 3) * 0.15;
+    for (const w of parts.body.children) if (w.userData.flap) w.rotation.y = w.userData.flap * (0.25 + Math.sin(t * (this.onGround ? 3 : 12)) * 0.25);
     // face: blink every few seconds, "ouch" when hurt, worried brows when low on HP
     const f = parts.face;
     if (f && f.eyes.length) {

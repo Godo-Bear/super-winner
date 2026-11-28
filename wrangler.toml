@@ -14,6 +14,15 @@ binding = "ASSETS"
 name = "ROOMS"
 class_name = "Room"
 
+# Optional accounts (one SQLite-backed Durable Object holds them all).
+[[durable_objects.bindings]]
+name = "ACCOUNTS"
+class_name = "Accounts"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Accounts"]

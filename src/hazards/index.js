@@ -1,6 +1,7 @@
 import { normalizeWord } from '../words.js';
 import { interpret } from '../lexicon.js';
 import { powerFor } from '../powers.js';
+import { forMeItem } from '../items.js';
 
 /**
  * Hazard registry: maps the `hazard` key used in words.js to a Hazard class.
@@ -51,7 +52,11 @@ export class HazardManager {
     // the word brain: dictionary word, describing word + noun, extra words, word parts... or a Mystery Blob
     const meaning = interpret(word);
     let Cls = null, entry = null, spec = null;
-    if (meaning?.item) { Cls = REGISTRY.giveitem; spec = { item: meaning.item, unlimited: !!meaning.unlimited }; }
+    // 🛡️ For me + a weapon word ("gun", "laser", "cannon"...) → you get one to hold
+    const words2 = word.split(' ');
+    const selfItem = forSelf && !meaning?.item ? (forMeItem(word) || (words2.length === 2 && /^(unlimited|infinite|infinity|endless)$/.test(words2[0]) && forMeItem(words2[1]))) : null;
+    if (selfItem) { Cls = REGISTRY.giveitem; spec = { item: selfItem, unlimited: words2.length === 2 && /^(unlimited|infinite|infinity|endless)$/.test(words2[0]) }; }
+    else if (meaning?.item) { Cls = REGISTRY.giveitem; spec = { item: meaning.item, unlimited: !!meaning.unlimited }; }
     else if (forSelf && !['mapchange', 'blessing', 'clearmap'].includes(meaning?.hazard)) {
       // 🛡️ For me: the word becomes a power for the Writer only (ride a tank, become a lion...)
       Cls = REGISTRY.selfpower; spec = { power: powerFor(meaning, word), unlimited: !!meaning?.spec?.unlimited };

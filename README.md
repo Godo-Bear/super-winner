@@ -59,13 +59,15 @@ laptops) and switch off again when you move with the keyboard.
 * **⚔️ Attack or 🛡️ For me**: the Writer box has two buttons. *Attack* unleashes your word on everyone.
   *For me* turns it into a power just for you: vehicles ("tank", "car", "bus"...) let you drive them (armoured,
   fast, ram people; tanks fire shells with **E**), creatures ("lion", "dragon"...) turn you into a bigger, tougher
-  version that bites with **E**, anything else gives a shield + speed + health boost. See `src/powers.js`.
+  version that bites with **E**, weapons ("gun", "laser", "minigun", "bazooka"...) put a matching item in *your*
+  hotbar (a gun gives you a 🔫 blaster), anything else gives a shield + speed + health boost. See `src/powers.js`.
 * **Whoever is typing is shielded** (bubble shield, can't be hurt) until their word lands.
 * **Weapons can knock players out**: swords, hammers, snowballs, tank shells, bites and rams all count as your kill.
 * **Ask for items**: write an item name and only *you* get it (up to 3 in the hotbar; **E** use, **Q** switch, USE on touch):
   🗡️ sword · 🔨 hammer · ❄️ snowballs · 🩹 medkit · 🌀 teleporter · 🍌 trap · 👟 boots (double jump) ·
   🦘 pogo (super jump) · ☂️ umbrella (float, blocks acid rain) · 🛹 skateboard (faster) · 🏹 bow · 🪃 boomerang ·
-  🧊 freeze ray · 🌬️ leaf blower · 🪄 magic wand · 🧥 invisibility cloak · 🪝 grappling hook · 💣 grenades.
+  🧊 freeze ray · 🌬️ leaf blower · 🪄 magic wand · 🧥 invisibility cloak · 🪝 grappling hook · 💣 grenades ·
+  🔫 blaster · 🔥 flamethrower (short-range cone of fire) · 🫧 bubble blaster (traps people in a floating bubble).
   Items live in `src/items.js`.
 * **More words**: "unlimited" (before an item it never runs out, before a creature you get loads, on its own it's
   a super blessing for the Writer), anime-style types (fighter/"anime" and mecha fire energy beams, samurai,
@@ -76,11 +78,23 @@ laptops) and switch off again when you move with the keyboard.
   Themes live in `THEMES` in `src/island.js`. A new round starts on the normal map again.
 * **"god"** (or angel, invincible, superpower, miracle...) only helps the Writer: full health, a big shield and
   10 seconds of invincibility.
-* The HUD shows **your chance to be the next Writer** (the same odds the game actually uses).
-* Spend coins in the **🛍️ Shop** on hats, shirts, pants and skin colours (real skin tones are always free). Your
+* The HUD shows **your chance to be the next Writer** (the same odds the game actually uses). Picks are **fair**:
+  your weight grows the longer you've waited since you last wrote (about 5× after 5 minutes, capped at 6×), and right after you
+  write it drops to a quarter. Real players count double against bots. See `writerWeight` in `src/writer.js`.
+* Spend coins in the **🛍️ Shop** on hats (crown, wizard, pirate, cowboy, bunny/cat ears, headphones...), shirts,
+  pants, skin colours (real skin tones are always free), **back items** (capes, wings, backpack, jetpack, turtle
+  shell) and **pets** that float beside you (duck, cat, dog, bunny, ghost, robot, alien, unicorn, dragon). Your
   outfit shows up for everyone when you play online. Items live in `src/shop.js`, so adding one is one line.
 * The lobby's **Word Index** tracks every dictionary word you have seen (undiscovered words show as `???`) and every
   Mystery Blob you have created.
+
+## Optional account (save your progress anywhere)
+
+You never have to log in: progress is saved in your browser. Press **👤 Log in** in the lobby to create an account
+(just a username and password, no email). Your coins, outfit, quests and levels are then also saved on the game's
+server and follow you to any device; signing up keeps the progress you already have. Accounts live in the same
+Cloudflare Worker as online play (the `Accounts` Durable Object in `worker/src/index.js`, SQLite storage, salted
+PBKDF2 password hashes). The client side is `src/account.js`.
 
 ## Playing online with friends
 
@@ -215,8 +229,9 @@ scripts/dev-relay.mjs  local Node relay for testing (`npm run relay`)
 1. **Hand-made dictionary words** (`words.js`): meteor, tsunami, nuke...
 2. **Describing word + noun**: "giant chicken", "fire ninja", "tiny robots", "golden piano", "baby shark".
    Describing words include giant/tiny/fire/ice/fast/angry/cute/golden/many/flying and colours.
-3. **~700 extra words**, each plugged into a generic hazard:
-   - creatures that chase, charge, swarm, dive-bomb, leap or shoot: lion, spider, eagle, whale, grandma, ninja, wizard...
+3. **~1,100 extra words**, each plugged into a generic hazard:
+   - creatures that chase, charge, swarm, dive-bomb, leap or shoot: lion, spider, eagle, whale, grandma, ninja, wizard,
+     cheetah, mammoth, minotaur, phoenix, golem, hydra, medusa, genie, fairy...
    - things that fall: piano, toilet, rocks, dynamite; food that you can eat afterwards (pizza, cake...);
      money that gives real coins; hearts that heal
    - vehicles racing along red lanes: car, bus, train, tank, bike...

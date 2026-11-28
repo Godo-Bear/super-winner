@@ -5,7 +5,7 @@ import { DEFAULT_RELAY } from './net/connection.js';
 import { ITEMS, SLOTS, isOwned, buy, DEFAULT_EQUIPPED } from './shop.js';
 import { writeSave } from './save.js';
 import { MODES } from './modes.js';
-import { ITEMS as GAME_ITEMS } from './items.js';
+import { ITEMS as GAME_ITEMS, forMeItem } from './items.js';
 import { ensureQuests, questInfo, xpForLevel } from './progress.js';
 const $ = (id) => document.getElementById(id);
 
@@ -56,6 +56,73 @@ export class UI {
     this.bindOnline();
     this.bindShop();
     this.bindPlayExtras();
+    this.bindAccount();
+  }
+
+  // ---------------- Optional account ----------------
+  bindAccount() {
+    const g = this.game;
+    this.loginTab = 'login';
+    $('account-bar').addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-acct]');
+      if (!b) return;
+      if (b.dataset.acct === 'open') this.openLogin();
+      else if (b.dataset.acct === 'logout') { await g.account.logout(); this.toast('👋 Logged out. Progress stays saved on this device.'); this.renderAccount(); }
+    });
+    document.querySelector('.login-tabs').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-tab]');
+      if (b) this.setLoginTab(b.dataset.tab);
+    });
+    $('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const user = $('login-user').value.trim(), pass = $('login-pass').value;
+      const status = (t, err) => { $('login-status').textContent = t; $('login-status').classList.toggle('red', !!err); };
+      if (this.loginTab === 'register') {
+        if (!isWordAllowed(user)) return status("That username isn't allowed.", true);
+        if (pass !== $('login-pass2').value) return status("The passwords don't match.", true);
+      }
+      $('login-go').disabled = true;
+      status(this.loginTab === 'register' ? 'Creating your account...' : 'Logging in...');
+      try {
+        if (this.loginTab === 'register') await g.account.register(user, pass);
+        else await g.account.login(user, pass);
+        $('login').classList.add('hidden');
+        $('login-pass').value = $('login-pass2').value = '';
+        this.toast(`👤 Hi ${g.account.username}! Your progress is saved to your account.`);
+        if (!$('on-name').value) $('on-name').value = g.account.username;
+        this.showLobby();
+      } catch (err) {
+        status(err.message, true);
+      }
+      $('login-go').disabled = false;
+    });
+    this.renderAccount();
+  }
+
+  setLoginTab(tab) {
+    this.loginTab = tab;
+    document.querySelectorAll('.login-tabs [data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+    const reg = tab === 'register';
+    $('login-title').textContent = reg ? '👤 Sign up' : '👤 Log in';
+    $('login-go').textContent = reg ? 'Create account' : 'Log in';
+    $('login-pass2-wrap').classList.toggle('hidden', !reg);
+    $('login-pass').autocomplete = reg ? 'new-password' : 'current-password';
+    $('login-status').textContent = '';
+  }
+
+  openLogin() {
+    this.setLoginTab('login');
+    $('login').classList.remove('hidden');
+    setTimeout(() => $('login-user').focus(), 30);
+  }
+
+  renderAccount() {
+    const a = this.game.account;
+    if (!a) return;
+    const cloud = a.status === 'synced' ? '☁️ saved' : a.status === 'offline' ? '⚠️ offline' : '';
+    $('account-bar').innerHTML = a.loggedIn
+      ? `<span>👤 <b>${esc(a.username)}</b> ${cloud}</span> <button class="btn btn-small" data-acct="logout">Log out</button>`
+      : '<button class="btn btn-small" data-acct="open">👤 Log in / Sign up <small>(optional)</small></button>';
   }
 
   // ---------------- Modes, quests, pause, emotes ----------------
@@ -212,7 +279,7 @@ export class UI {
     $('shop-grid').innerHTML = ITEMS.filter((i) => i.slot === this.shopSlot).map((i) => {
       const owned = isOwned(save, i);
       const on = eq[i.slot] === i.id;
-      const sw = i.slot === 'hat' ? `<span class="sw-icon">${i.icon}</span>` : `<span class="sw" style="background:#${i.color.toString(16).padStart(6, '0')}"></span>`;
+      const sw = i.icon ? `<span class="sw-icon">${i.icon}</span>` : `<span class="sw" style="background:#${i.color.toString(16).padStart(6, '0')}"></span>`;
       const label = on ? '✔ Wearing' : owned ? 'Wear' : `🪙 ${i.price}`;
       const cls = on ? 'on' : owned ? 'owned' : save.coins >= i.price ? 'buy' : 'locked';
       return `<button class="shop-item ${cls}" data-item="${i.id}">${sw}<b>${esc(i.name)}</b><span class="price">${label}</span></button>`;
@@ -224,7 +291,7 @@ export class UI {
     const g = this.game;
     const store = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } };
     const read = (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
-    $('on-name').value = read('sw_name');
+    $('on-name').value = read('sw_name') || read('sw_user');
     $('on-server').value = read('sw_relay') || DEFAULT_RELAY;
     if (DEFAULT_RELAY && !read('sw_relay')) $('on-server-wrap').removeAttribute('open');
     else $('on-server-wrap').setAttribute('open', '');
@@ -339,6 +406,7 @@ export class UI {
     const total = this.game.dictionaryCount ?? 0;
     $('lobby-stats').textContent = `🏆 ${s.wins} wins · 🎮 ${s.games} games · 📖 ${s.discovered.length}/${total} words discovered`;
     $('lobby').classList.remove('hidden');
+    this.renderAccount();
     $('lobby-level').innerHTML = this.levelHtml();
     this.renderModes();
     $('hud').classList.add('hidden');
@@ -419,7 +487,7 @@ export class UI {
     $('writer-status').textContent = data.writer;
     const ch = $('writer-chance');
     if (data.chance === null || data.chance === undefined) ch.textContent = '';
-    else ch.textContent = `🎲 ${innerWidth < 700 ? 'Writer chance' : 'Your chance to be the next Writer'}: ${Math.round(data.chance * 100)}%`;
+    else ch.textContent = `🎲 ${innerWidth < 700 ? 'Writer chance' : 'Your chance to be the next Writer'}: ${Math.round(data.chance * 100)}%${innerWidth < 700 ? '' : ' (grows while you wait)'}`;
 
     const hz = data.hazards;
     $('hazard-count').textContent = `${hz.length}/${g.hazards.max}`;
@@ -590,7 +658,10 @@ export class UI {
     else if (v && v.split(' ').length > 2) html += '<span class="sug blocked">Use 1 or 2 words</span>';
     else if (v && this.writeForSelf) {
       const m = interpret(v);
-      if (m?.item) html += `<span class="sug mystery">${m.icon} You get a ${esc(m.label)}!</span>`;
+      const parts = v.toLowerCase().split(' ');
+      const fi = !m?.item && (forMeItem(v) || (parts.length === 2 && forMeItem(parts[1])));
+      if (fi) html += `<span class="sug mystery">${GAME_ITEMS[fi].icon} You get a ${esc(GAME_ITEMS[fi].name)}!</span>`;
+      else if (m?.item) html += `<span class="sug mystery">${m.icon} You get a ${esc(m.label)}!</span>`;
       else if (m?.hazard === 'mapchange') html += '<span class="sug mystery">🗺️ Changes the map for everyone</span>';
       else {
         const p = powerFor(m, v);

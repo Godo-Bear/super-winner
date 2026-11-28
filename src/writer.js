@@ -9,14 +9,11 @@ export const LATE_INTERVAL = 12; // things speed up after a while
 export const WRITE_TIME = 10;
 
 /**
- * Chance that one particular living human becomes the next Writer.
- * Mirrors startTurn(): humans share a boosted slice, bots split the rest.
+ * Fair Writer picks: the longer you've waited since you last wrote, the better your chance.
+ * Someone who just wrote gets a small chance; after ~5 minutes of waiting you're very likely next.
+ * Real players count double compared with bots.
  */
-export function writerChance(living, humans, bots) {
-  if (!living || !humans) return 0;
-  const P = Math.min(0.75, humans * Math.max(1 / living, 0.18));
-  return bots > 0 ? P / humans : P / humans + (1 - P) / living;
-}
+export const writerWeight = (waitSeconds, human) => (human ? 2 : 1) * Math.min(6, Math.max(0.25, (waitSeconds + 15) / 60));
 
 export const CATEGORY_COLORS = {
   disaster: '#ff8a1f', weather: '#7fd4ff', monster: '#c084fc', weapon: '#ff3b4f',
@@ -159,6 +156,28 @@ export class WriterSystem {
     }
   }
 
+  /** Key that survives between rounds (bots change names, online friends change character slots). */
+  waitKey(c) { return c.isPlayer ? 'me' : c.remote ? `p${c.clientId}` : `b${c.id}`; }
+
+  waited(c) {
+    const g = this.game;
+    this.lastWrote ||= new Map();
+    const k = this.waitKey(c);
+    if (!this.lastWrote.has(k)) this.lastWrote.set(k, g.time - 30); // newcomers start as if they'd waited a bit
+    return g.time - this.lastWrote.get(k);
+  }
+
+  /** Each living character's chance (0..1) of being the next Writer. */
+  chances() {
+    const g = this.game;
+    const living = g.livingCharacters().filter((c) => !g.modeCfg.sandbox || c.isBot);
+    const w = living.map((c) => writerWeight(this.waited(c), c.isPlayer || c.remote));
+    const total = w.reduce((a, b) => a + b, 0) || 1;
+    return new Map(living.map((c, i) => [c, w[i] / total]));
+  }
+
+  chanceFor(c) { return this.chances().get(c) ?? 0; }
+
   startTurn() {
     const g = this.game;
     const living = g.livingCharacters();
@@ -166,12 +185,12 @@ export class WriterSystem {
     const humans = living.filter((c) => c.isPlayer || c.remote);
     if (this.turns > 0) for (const h of humans) { g.giveCoins(h, 5, 'Survived a hazard!'); g.trackFor(h, 'survive'); }
     this.turns++;
-    // humans get a fair (slightly boosted) shot at writing (in Sandbox you write whenever you like, so bots take the turns)
-    let w;
-    if (g.modeCfg.sandbox) w = pick(living.filter((c) => c.isBot));
-    else if (humans.length && Math.random() < Math.min(0.75, humans.length * Math.max(1 / living.length, 0.18))) w = pick(humans); // keep in sync with writerChance()
-    else w = pick(living.filter((c) => c.isBot)) || pick(living);
+    // fair pick: weighted by how long each person has waited (in Sandbox you write whenever you like, so bots take turns)
+    let w = null;
+    let r = Math.random();
+    for (const [c, p] of this.chances()) { w = c; r -= p; if (r <= 0) break; }
     if (!w) { this.timer = this.interval; this.phase = 'waiting'; return; }
+    this.lastWrote.set(this.waitKey(w), g.time);
     this.writer = w;
     this.phase = 'writing';
     this.elapsed = 0;

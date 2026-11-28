@@ -24,6 +24,9 @@ export const ITEMS = {
   boots: { name: 'Bounce Boots', icon: '👟', words: ['boots', 'boot', 'sneakers', 'double jump', 'trainers', 'jump boots'], passive: 'doublejump', uses: Infinity },
   pogo: { name: 'Pogo Stick', icon: '🦘', words: ['pogo', 'pogo stick', 'super jump'], passive: 'superjump', uses: Infinity },
   umbrella: { name: 'Umbrella', icon: '☂️', words: ['umbrella', 'umbrellas', 'parasol', 'parachute'], passive: 'glide', uses: Infinity },
+  blaster: { name: 'Blaster', icon: '🔫', words: ['blaster', 'blasters', 'ray gun', 'laser gun', 'water gun', 'squirt gun', 'nerf gun', 'pistol', 'raygun'], kind: 'throw', uses: 30, cooldown: 0.22, damage: 14, knock: 6, speed: 48, lob: 0.4, color: 0x7fd4ff, size: 0.55 },
+  flamethrower: { name: 'Flamethrower', icon: '🔥', words: ['flamethrower', 'flame thrower', 'fire breath', 'flame gun', 'dragon breath'], kind: 'flame', uses: 20, cooldown: 0.3, damage: 12, knock: 6, range: 5.5 },
+  bubble: { name: 'Bubble Blaster', icon: '🫧', words: ['bubble blaster', 'bubble gun', 'bubbles', 'bubble wand', 'bubble machine'], kind: 'freeze', uses: 8, cooldown: 0.8, damage: 4, time: 2.2, lift: true },
   bow: { name: 'Bow', icon: '🏹', words: ['bow', 'bow and arrow', 'arrows', 'arrow', 'crossbow', 'slingshot'], kind: 'throw', uses: 15, cooldown: 0.5, damage: 22, knock: 8, speed: 40, lob: 1.5, color: 0x8d6e63, size: 0.6 },
   boomerang: { name: 'Boomerang', icon: '🪃', words: ['boomerang', 'boomerangs', 'frisbee'], kind: 'boomerang', uses: Infinity, cooldown: 1.2, damage: 18, knock: 10, range: 13 },
   freeze: { name: 'Freeze Ray', icon: '🧊', words: ['freeze ray', 'freeze gun', 'ice ray', 'freezer gun', 'freeze blaster', 'ice gun'], kind: 'freeze', uses: 8, cooldown: 0.8, damage: 8, time: 2.5 },
@@ -36,6 +39,24 @@ export const ITEMS = {
 };
 export const ITEM_IDS = Object.keys(ITEMS);
 export const MAX_ITEMS = 3;
+
+/**
+ * With 🛡️ For me, these words give you a weapon to hold (with ⚔️ Attack they keep their normal meaning,
+ * e.g. "gun" is a minigun turret that shoots at everyone).
+ */
+export const FOR_ME_ITEMS = {
+  gun: 'blaster', guns: 'blaster', minigun: 'blaster', 'machine gun': 'blaster', 'minigun turret': 'blaster', turret: 'blaster',
+  rifle: 'blaster', shotgun: 'blaster', laser: 'blaster', lasers: 'blaster', 'laser beam': 'blaster', beam: 'blaster', 'spinning laser': 'blaster',
+  cannon: 'grenade', cannons: 'grenade', bomb: 'grenade', bombs: 'grenade', mortar: 'grenade', artillery: 'grenade',
+  airstrike: 'grenade', missile: 'grenade', rocket: 'grenade', 'rocket launcher': 'grenade',
+  axe: 'hammer', banana: 'trap',
+};
+
+/** Item a "For me" word gives (normal item words, plus the extra weapon words above). */
+export function forMeItem(word) {
+  const w = String(word).toLowerCase().trim();
+  return itemForWord(w) || FOR_ME_ITEMS[w] || FOR_ME_ITEMS[w.replace(/s$/, '')] || null;
+}
 
 const WORD_TO_ITEM = new Map();
 for (const [id, it] of Object.entries(ITEMS)) for (const w of it.words) WORD_TO_ITEM.set(w, id);
@@ -161,8 +182,17 @@ export class ItemSystem {
       this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.5, z: c.pos.z + fz * 0.8 }, { vx: fx * 20, vy: 0, vz: fz * 20 }, { damage: it.damage, knock: it.knock, src, color: 0xc68642, size: 1.1, boomerang: it.range });
       g.audio.whoosh();
     } else if (it.kind === 'freeze') {
-      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.6, z: c.pos.z + fz * 0.8 }, { vx: fx * 34, vy: 0.5, vz: fz * 34 }, { damage: it.damage, knock: 2, src, color: 0x9fe8ff, size: 0.9, freeze: it.time });
+      this.fire(c, { x: c.pos.x + fx * 0.8, y: c.pos.y + 1.6, z: c.pos.z + fz * 0.8 }, { vx: fx * 34, vy: 0.5, vz: fz * 34 }, { damage: it.damage, knock: 2, src, color: it.lift ? 0xb3e5fc : 0x9fe8ff, size: it.lift ? 1.4 : 0.9, freeze: it.time, lift: it.lift });
       g.audio.tone({ freq: 1800, to: 600, type: 'sine', dur: 0.25, vol: 0.12 });
+    } else if (it.kind === 'flame') {
+      for (const o of g.characters) {
+        if (o === c || !o.alive) continue;
+        const dx = o.pos.x - c.pos.x, dz = o.pos.z - c.pos.z, d = Math.hypot(dx, dz);
+        if (d > it.range || Math.abs(o.pos.y - c.pos.y) > 2.5 || (dx * fx + dz * fz) / (d || 1) < 0.6) continue;
+        g.damage(o, it.damage, src, { knock: { x: fx * it.knock, y: 3, z: fz * it.knock } });
+      }
+      g.particles.emit({ x: c.pos.x + fx * 0.9, y: c.pos.y + 1.4, z: c.pos.z + fz * 0.9, color: [0xff3d00, 0xff6a00, 0xffa31a, 0xffe066], count: 16, speed: 13, size: 0.45, life: 0.45, gravity: -2, drag: 1, dir: { x: fx, y: 0.05, z: fz }, cone: 0.25 });
+      g.audio.noise({ dur: 0.35, vol: 0.25, freq: 900, to: 300, attack: 0.02 });
     } else if (it.kind === 'push') {
       for (const o of g.characters) {
         if (o === c || !o.alive) continue;
@@ -227,7 +257,7 @@ export class ItemSystem {
     this.group.add(mesh);
     this.balls.push({
       mesh, vx: v.vx, vy: v.vy, vz: v.vz, life: opts.boomerang ? 3 : 1.8, owner, src: opts.src, it: { damage: opts.damage, knock: opts.knock },
-      explode: opts.explode || 0, freeze: opts.freeze || 0, boomerang: opts.boomerang || 0, travelled: 0, hitSet: new Set(),
+      explode: opts.explode || 0, freeze: opts.freeze || 0, lift: !!opts.lift, boomerang: opts.boomerang || 0, travelled: 0, hitSet: new Set(),
     });
   }
 
@@ -272,7 +302,10 @@ export class ItemSystem {
         if (Math.abs(p.x - o.pos.x) < 0.7 && Math.abs(p.z - o.pos.z) < 0.7 && p.y > o.pos.y && p.y < o.pos.y + 2.4) {
           const l = Math.hypot(b.vx, b.vz) || 1;
           if (!b.explode) g.damage(o, b.it.damage, b.src, { knock: { x: (b.vx / l) * b.it.knock, y: 4, z: (b.vz / l) * b.it.knock } });
-          if (b.freeze && o.alive) { o.frozen = Math.max(o.frozen || 0, b.freeze); g.notify(o, '🧊 You are frozen!'); }
+          if (b.freeze && o.alive) {
+            o.frozen = Math.max(o.frozen || 0, b.freeze);
+            if (b.lift) { o.knock(0, 9, 0); g.notify(o, '🫧 You got stuck in a bubble!'); } else g.notify(o, '🧊 You are frozen!');
+          }
           b.hitSet.add(o);
           if (!b.boomerang) hit = true;
         }

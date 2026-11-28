@@ -10,7 +10,7 @@ export const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x1b1530, side: 
  * its own material so it can flash red when hurt.
  */
 export function makeHumanoid({
-  skin = 0xffcc88, shirt = 0x3fa9ff, pants = 0x334488, hat = null, hatStyle = 'cap', hair = 0x4a2f1b,
+  skin = 0xffcc88, shirt = 0x3fa9ff, pants = 0x334488, hat = null, hatStyle = 'cap', hair = 0x4a2f1b, back = null, backColor = null,
   scale = 1, ownMaterials = false, eyes = 0x111111, outline = true, face = true,
 } = {}) {
   const mats = [];
@@ -99,6 +99,7 @@ export function makeHumanoid({
     faceParts.mouth = mouth;
   }
   if (hat !== null) addHat(head, hatStyle || 'cap', mat(hat), mk);
+  if (back) addBack(body, back, backColor ?? 0xd62828, mk);
   else if (hair !== null) {
     const hm = flatMat(hair);
     const top = mk(0.66, 0.14, 0.66, hm);
@@ -171,6 +172,33 @@ export function animateHumanoid(parts, phase, amount, opts = {}) {
 
 const partyGeo = new THREE.ConeGeometry(0.28, 0.7, 6);
 const haloGeo = new THREE.TorusGeometry(0.34, 0.05, 6, 16);
+const wizardGeo = new THREE.ConeGeometry(0.34, 0.95, 6);
+const helmetGeo = new THREE.SphereGeometry(0.52, 12, 8);
+
+/** Things worn on the back (coin shop "Back" slot). */
+function addBack(body, style, color, mk) {
+  const m = flatMat(color);
+  const at = (mesh, x, y, z) => { mesh.position.set(x, y, z); body.add(mesh); return mesh; };
+  if (style === 'cape') {
+    const c = at(mk(0.86, 1.25, 0.06, m, true), 0, -0.3, -0.3);
+    c.rotation.x = 0.12;
+  } else if (style === 'wings') {
+    for (const sx of [-1, 1]) {
+      const w = at(mk(0.9, 0.55, 0.06, m, true), sx * 0.55, 0.15, -0.32);
+      w.rotation.z = sx * 0.35;
+      w.userData.flap = sx;
+    }
+  } else if (style === 'backpack') {
+    at(mk(0.6, 0.65, 0.3, m, true), 0, 0, -0.4);
+    at(mk(0.4, 0.25, 0.1, flatMat(0xffffff)), 0, -0.1, -0.57);
+  } else if (style === 'jetpack') {
+    for (const sx of [-1, 1]) at(mk(0.26, 0.62, 0.26, m, true), sx * 0.18, 0, -0.4);
+    for (const sx of [-1, 1]) at(mk(0.18, 0.14, 0.18, flatMat(0xff5a1f)), sx * 0.18, -0.36, -0.4);
+  } else if (style === 'shell') {
+    at(mk(0.9, 0.8, 0.35, m, true), 0, 0, -0.42);
+    at(mk(0.5, 0.45, 0.06, flatMat(0xf4c542)), 0, 0, -0.6);
+  }
+}
 
 /** Hat shapes for the coin shop. All blocky, all primitives. */
 function addHat(head, style, m, mk) {
@@ -214,6 +242,54 @@ function addHat(head, style, m, mk) {
       const h = new THREE.Mesh(haloGeo, m);
       h.rotation.x = Math.PI / 2;
       at(h, 0, 0.62, 0);
+      break;
+    }
+    case 'beanie':
+      at(mk(0.68, 0.3, 0.68, m, true), 0, 0.36, 0);
+      at(mk(0.18, 0.14, 0.18, flatMat(0xffffff)), 0, 0.57, 0);
+      break;
+    case 'cowboy':
+      at(mk(1.05, 0.06, 1.05, m), 0, 0.33, 0);
+      at(mk(0.56, 0.36, 0.56, m, true), 0, 0.52, 0);
+      at(mk(0.58, 0.08, 0.58, flatMat(0x3e2723)), 0, 0.4, 0);
+      break;
+    case 'wizard': {
+      at(mk(0.95, 0.06, 0.95, m), 0, 0.33, 0);
+      const c = new THREE.Mesh(wizardGeo, m);
+      c.castShadow = true;
+      at(c, 0, 0.85, 0);
+      at(mk(0.12, 0.12, 0.04, flatMat(0xffe066)), 0.1, 0.75, 0.25);
+      break;
+    }
+    case 'pirate':
+      at(mk(0.9, 0.3, 0.5, m, true), 0, 0.45, 0);
+      at(mk(0.16, 0.12, 0.04, flatMat(0xffffff)), 0, 0.48, 0.26);
+      break;
+    case 'santa': {
+      at(mk(0.72, 0.14, 0.72, flatMat(0xffffff)), 0, 0.34, 0);
+      const c = new THREE.Mesh(partyGeo, m);
+      c.rotation.z = -0.4;
+      at(c, 0.12, 0.7, 0);
+      at(mk(0.16, 0.16, 0.16, flatMat(0xffffff)), 0.34, 0.95, 0);
+      break;
+    }
+    case 'bunny':
+      for (const sx of [-1, 1]) { const e = at(mk(0.14, 0.6, 0.08, m, true), sx * 0.16, 0.6, 0); e.rotation.z = -sx * 0.15; at(mk(0.07, 0.42, 0.02, flatMat(0xff8fa3)), sx * 0.16, 0.6, 0.05); }
+      break;
+    case 'cat':
+      for (const sx of [-1, 1]) { const e = at(mk(0.18, 0.2, 0.08, m, true), sx * 0.2, 0.4, 0); e.rotation.z = -sx * 0.5; }
+      break;
+    case 'headphones':
+      at(mk(0.74, 0.08, 0.16, m, true), 0, 0.36, 0);
+      for (const sx of [-1, 1]) at(mk(0.1, 0.26, 0.26, m, true), sx * 0.36, 0.05, 0);
+      break;
+    case 'flower':
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; at(mk(0.13, 0.13, 0.13, flatMat([0xff8fa3, 0xffe066, 0xc77dff][i % 3])), Math.cos(a) * 0.3, 0.34, Math.sin(a) * 0.3); }
+      break;
+    case 'helmet': {
+      const h = new THREE.Mesh(helmetGeo, new THREE.MeshBasicMaterial({ color: 0xa8e0ff, transparent: true, opacity: 0.35, depthWrite: false }));
+      at(h, 0, 0.02, 0);
+      at(mk(0.8, 0.1, 0.8, m), 0, -0.34, 0);
       break;
     }
     default:

@@ -19,6 +19,7 @@
       <h1 class="title"><span>SUPER</span> <span>WINNER</span></h1>
       <div class="subtitle">⚡ Word Storm Island ⚡</div>
       <p class="tagline">Every 15 seconds someone writes a word. That word comes to life. Survive the chaos!</p>
+      <div id="account-bar" class="account-bar"></div>
       <div class="coins-big">🪙 <span id="lobby-coins">0</span></div>
       <div class="lobby-stats" id="lobby-stats"></div>
       <div id="lobby-level" class="level-wrap"></div>
@@ -89,6 +90,28 @@
       <div id="shop-tabs" class="shop-tabs"></div>
       <div id="shop-grid" class="shop-grid"></div>
       <p id="shop-msg"></p>
+    </div>
+  </div>
+
+  <!-- Optional account -->
+  <div id="login" class="screen modal hidden">
+    <div class="modal-card login-card">
+      <div class="modal-head">
+        <h2 id="login-title">👤 Log in</h2>
+        <button class="btn btn-small" data-close="login">✕</button>
+      </div>
+      <p class="login-note">Optional! An account saves your coins, outfits, levels and words online so they follow you to any device. No email needed. Don't use your real name.</p>
+      <div class="login-tabs">
+        <button type="button" class="btn btn-small on" data-tab="login">Log in</button>
+        <button type="button" class="btn btn-small" data-tab="register">Sign up</button>
+      </div>
+      <form id="login-form" autocomplete="on">
+        <label class="field">Username<input id="login-user" maxlength="16" autocomplete="username" spellcheck="false" placeholder="3–16 letters or numbers" /></label>
+        <label class="field">Password<input id="login-pass" type="password" maxlength="64" autocomplete="current-password" placeholder="at least 6 characters" /></label>
+        <label class="field hidden" id="login-pass2-wrap">Password again<input id="login-pass2" type="password" maxlength="64" autocomplete="new-password" /></label>
+        <button id="login-go" class="btn btn-play" type="submit">Log in</button>
+      </form>
+      <p id="login-status"></p>
     </div>
   </div>
 
